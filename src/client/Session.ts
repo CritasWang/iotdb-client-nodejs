@@ -135,12 +135,27 @@ export class Session {
         }
 
         try {
-          // Parse initial batch of rows
-          const initialRows = await this.parseDataSet(
-            response.queryDataSet,
-            response.columns?.length || 0,
-            response.dataTypeList || []
-          );
+          let initialRows: any[][];
+          
+          // Handle both queryDataSet and queryResult formats
+          if (response.queryResult && response.queryResult.length > 0) {
+            // New TsBlock format (queryResult is Buffer[])
+            initialRows = await this.parseQueryResult(
+              response.queryResult,
+              response.columns?.length || 0,
+              response.dataTypeList || []
+            );
+          } else if (response.queryDataSet) {
+            // Old columnar format (TSQueryDataSet)
+            initialRows = await this.parseDataSet(
+              response.queryDataSet,
+              response.columns?.length || 0,
+              response.dataTypeList || []
+            );
+          } else {
+            // No data in response
+            initialRows = [];
+          }
 
           // Create SessionDataSet
           const dataSet = new SessionDataSet(
@@ -365,6 +380,92 @@ export class Session {
     }
     
     return Buffer.concat(buffers);
+  }
+
+  /**
+   * Parse queryResult (TsBlock format) - new format used by IoTDB
+   * queryResult is an array of Buffers representing columnar data in TsBlock format
+   */
+  async parseQueryResult(
+    queryResult: Buffer[],
+    _columnCount: number,
+    dataTypes: string[]
+  ): Promise<any[][]> {
+    const rows: any[][] = [];
+
+    if (!queryResult || queryResult.length === 0) {
+      logger.debug('parseQueryResult: queryResult is null or empty');
+      return rows;
+    }
+
+    logger.debug(`parseQueryResult: queryResult has ${queryResult.length} buffers`);
+    logger.debug(`parseQueryResult: dataTypes: ${JSON.stringify(dataTypes)}`);
+
+    // TsBlock format: First buffer is time column, rest are value columns
+    // Each buffer contains columnar data
+    const timeBuffer = Buffer.isBuffer(queryResult[0]) ? queryResult[0] : Buffer.from(queryResult[0]);
+    
+    // Validate time buffer
+    const timeBufferLength = timeBuffer.length;
+    if (timeBufferLength === 0 || timeBufferLength % 8 !== 0) {
+      logger.warn('Invalid time buffer length:', timeBufferLength);
+      return rows;
+    }
+
+    const rowCount = Math.floor(timeBufferLength / 8);
+    logger.debug(`parseQueryResult: rowCount = ${rowCount}`);
+    
+    // Parse value columns (start from index 1, index 0 is time)
+    const parsedColumns: any[][] = [];
+    for (let colIndex = 1; colIndex < queryResult.length; colIndex++) {
+      const valueBuffer = Buffer.isBuffer(queryResult[colIndex]) 
+        ? queryResult[colIndex] 
+        : Buffer.from(queryResult[colIndex]);
+      
+      // Get data type - dataTypes array corresponds to value columns (not including time)
+      let dataType = 5; // Default to TEXT
+      const typeIndex = colIndex - 1; // Adjust index since queryResult[0] is time
+      if (dataTypes && dataTypes[typeIndex] !== undefined) {
+        const typeStr = String(dataTypes[typeIndex]).toUpperCase();
+        if (typeStr.includes('BOOLEAN')) dataType = 0;
+        else if (typeStr.includes('INT32')) dataType = 1;
+        else if (typeStr.includes('INT64')) dataType = 2;
+        else if (typeStr.includes('FLOAT')) dataType = 3;
+        else if (typeStr.includes('DOUBLE')) dataType = 4;
+        else if (typeStr.includes('TEXT')) dataType = 5;
+        else if (typeStr.includes('TIMESTAMP')) dataType = 8;
+        else if (typeStr.includes('DATE')) dataType = 9;
+        else if (typeStr.includes('BLOB')) dataType = 10;
+        else if (typeStr.includes('STRING')) dataType = 11;
+      }
+      
+      logger.debug(`parseQueryResult: column ${colIndex}, dataType = ${dataType}, valueBuffer.length = ${valueBuffer.length}`);
+      
+      // Note: queryResult format may not have separate bitmap, nulls may be indicated differently
+      // For now, pass null bitmap and deserialize the column
+      const columnValues = this.deserializeColumn(valueBuffer, dataType, rowCount, null);
+      parsedColumns.push(columnValues);
+    }
+
+    // Build rows
+    for (let i = 0; i < rowCount; i++) {
+      const row: any[] = [];
+      
+      // Add timestamp
+      if (i * 8 + 8 <= timeBufferLength) {
+        row.push(timeBuffer.readBigInt64LE(i * 8));
+      }
+      
+      // Add column values
+      for (let colIndex = 0; colIndex < parsedColumns.length; colIndex++) {
+        row.push(parsedColumns[colIndex][i]);
+      }
+      
+      rows.push(row);
+    }
+
+    logger.debug(`parseQueryResult: returning ${rows.length} rows`);
+    return rows;
   }
 
   // parseDataSet is used by SessionDataSet for parsing query results

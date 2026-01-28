@@ -238,17 +238,27 @@ export abstract class BaseSessionPool {
 
   /**
    * Execute a query statement and return SessionDataSet
-   * Automatically manages session from the pool
+   * Session is held until dataset.close() is called
    */
   async executeQueryStatement(
     sql: string,
     timeoutMs: number = 60000,
   ): Promise<SessionDataSet> {
     const session = await this.getSession();
+    
     try {
-      return await session.executeQueryStatement(sql, timeoutMs);
-    } finally {
+      const dataSet = await session.executeQueryStatement(sql, timeoutMs);
+      
+      // Set cleanup callback to release session when dataset is closed
+      dataSet.setCleanupCallback(() => {
+        this.releaseSession(session);
+      });
+      
+      return dataSet;
+    } catch (error) {
+      // If query fails, release session immediately
       this.releaseSession(session);
+      throw error;
     }
   }
 

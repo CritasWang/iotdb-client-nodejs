@@ -54,6 +54,9 @@ export class SessionDataSet {
   private hasMoreData: boolean = false;
   private isClosed: boolean = false;
   private hasCachedRow: boolean = false;
+  
+  // Cleanup callback for session pool
+  private cleanupCallback?: () => void;
 
   constructor(
     session: Session,
@@ -83,6 +86,14 @@ export class SessionDataSet {
     for (let i = 0; i < columnNames.length; i++) {
       this.columnNameIndexMap.set(columnNames[i], i);
     }
+  }
+  
+  /**
+   * Set cleanup callback to be called when dataset is closed.
+   * Used by SessionPool to release the session back to the pool.
+   */
+  setCleanupCallback(callback: () => void): void {
+    this.cleanupCallback = callback;
   }
 
   /**
@@ -197,12 +208,27 @@ export class SessionDataSet {
         }
 
         try {
-          // Parse the dataset
-          const rows = await (this.session as any).parseDataSet(
-            response.queryDataSet,
-            this.columnNames.length,
-            this.columnTypes
-          );
+          let rows: any[][];
+          
+          // Handle both queryDataSet and queryResult formats
+          if (response.queryResult && response.queryResult.length > 0) {
+            // New TsBlock format (queryResult is Buffer[])
+            rows = await (this.session as any).parseQueryResult(
+              response.queryResult,
+              this.columnNames.length,
+              this.columnTypes
+            );
+          } else if (response.queryDataSet) {
+            // Old columnar format (TSQueryDataSet)
+            rows = await (this.session as any).parseDataSet(
+              response.queryDataSet,
+              this.columnNames.length,
+              this.columnTypes
+            );
+          } else {
+            // No data in response
+            rows = [];
+          }
 
           this.currentRows = rows;
           this.currentRowIndex = 0;
@@ -251,8 +277,16 @@ export class SessionDataSet {
         });
       });
     } catch (error) {
-      logger.error(`Error in close operation: ${error}`);
-      // Don't throw, just log
+      logger.warn(`Error in close operation: ${error}`);
+    } finally {
+      // Call cleanup callback if set (e.g., to release session back to pool)
+      if (this.cleanupCallback) {
+        try {
+          this.cleanupCallback();
+        } catch (callbackError) {
+          logger.warn(`Error in cleanup callback: ${callbackError}`);
+        }
+      }
     }
   }
 
