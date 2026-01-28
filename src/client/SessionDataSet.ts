@@ -47,6 +47,7 @@ export class SessionDataSet {
   private columnNameIndexMap: Map<string, number>;
   private fetchSize: number;
   private sessionId: number;
+  private ignoreTimeStamp: boolean;
   
   // Current batch state
   private currentRows: any[][] = [];
@@ -68,7 +69,8 @@ export class SessionDataSet {
     initialRows: any[][],
     hasMoreData: boolean,
     fetchSize: number,
-    sessionId: number
+    sessionId: number,
+    ignoreTimeStamp: boolean = false
   ) {
     this.session = session;
     this.queryId = queryId;
@@ -78,6 +80,7 @@ export class SessionDataSet {
     this.columnTypes = columnTypes;
     this.fetchSize = fetchSize;
     this.sessionId = sessionId;
+    this.ignoreTimeStamp = ignoreTimeStamp;
     this.hasMoreData = hasMoreData;
     this.currentRows = initialRows;
     
@@ -216,7 +219,8 @@ export class SessionDataSet {
             rows = await (this.session as any).parseQueryResult(
               response.queryResult,
               this.columnNames.length,
-              this.columnTypes
+              this.columnTypes,
+              this.ignoreTimeStamp
             );
           } else if (response.queryDataSet) {
             // Old columnar format (TSQueryDataSet)

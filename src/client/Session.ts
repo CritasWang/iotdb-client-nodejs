@@ -136,6 +136,7 @@ export class Session {
 
         try {
           let initialRows: any[][];
+          const ignoreTimeStamp = response.ignoreTimeStamp || false;
           
           // Handle both queryDataSet and queryResult formats
           if (response.queryResult && response.queryResult.length > 0) {
@@ -143,7 +144,8 @@ export class Session {
             initialRows = await this.parseQueryResult(
               response.queryResult,
               response.columns?.length || 0,
-              response.dataTypeList || []
+              response.dataTypeList || [],
+              ignoreTimeStamp
             );
           } else if (response.queryDataSet) {
             // Old columnar format (TSQueryDataSet)
@@ -168,7 +170,8 @@ export class Session {
             initialRows,
             response.moreData || false,
             this.config.fetchSize || 1024,
-            sessionId
+            sessionId,
+            ignoreTimeStamp
           );
 
           resolve(dataSet);
@@ -385,11 +388,13 @@ export class Session {
   /**
    * Parse queryResult (TsBlock format) - new format used by IoTDB
    * queryResult is an array of Buffers representing columnar data in TsBlock format
+   * @param ignoreTimeStamp - If true, no time column is present; if false, time column is at index 0
    */
   async parseQueryResult(
     queryResult: Buffer[],
     _columnCount: number,
-    dataTypes: string[]
+    dataTypes: string[],
+    ignoreTimeStamp: boolean = false
   ): Promise<any[][]> {
     const rows: any[][] = [];
 
@@ -398,48 +403,53 @@ export class Session {
       return rows;
     }
 
-    logger.debug(`parseQueryResult: queryResult has ${queryResult.length} buffers`);
+    logger.debug(`parseQueryResult: queryResult has ${queryResult.length} buffers, ignoreTimeStamp=${ignoreTimeStamp}`);
     logger.debug(`parseQueryResult: dataTypes: ${JSON.stringify(dataTypes)}`);
 
-    // TsBlock format: First buffer is time column, rest are value columns
-    // Each buffer contains columnar data
-    const timeBuffer = Buffer.isBuffer(queryResult[0]) ? queryResult[0] : Buffer.from(queryResult[0]);
-    
-    // Validate time buffer
-    const timeBufferLength = timeBuffer.length;
-    if (timeBufferLength === 0 || timeBufferLength % 8 !== 0) {
-      logger.warn('Invalid time buffer length:', timeBufferLength);
-      return rows;
+    // Determine row count and parse time column if present
+    let timeBuffer: Buffer | null = null;
+    let rowCount = 0;
+    let valueColumnStartIndex = 0;
+
+    if (!ignoreTimeStamp && queryResult.length > 0) {
+      // First buffer is time column
+      timeBuffer = Buffer.isBuffer(queryResult[0]) ? queryResult[0] : Buffer.from(queryResult[0]);
+      
+      // Validate time buffer
+      const timeBufferLength = timeBuffer.length;
+      if (timeBufferLength === 0 || timeBufferLength % 8 !== 0) {
+        logger.warn('Invalid time buffer length:', timeBufferLength);
+        return rows;
+      }
+
+      rowCount = Math.floor(timeBufferLength / 8);
+      valueColumnStartIndex = 1; // Value columns start from index 1
+    } else {
+      // No time column, determine row count from first value column
+      if (queryResult.length > 0) {
+        const firstValueBuffer = Buffer.isBuffer(queryResult[0]) ? queryResult[0] : Buffer.from(queryResult[0]);
+        // Row count depends on data type, but we need to infer it
+        // For simplicity, we'll determine it from the first column based on its type
+        const firstDataType = this.getDataTypeCode(dataTypes[0]);
+        rowCount = this.getRowCountFromBuffer(firstValueBuffer, firstDataType);
+      }
+      valueColumnStartIndex = 0; // Value columns start from index 0
     }
 
-    const rowCount = Math.floor(timeBufferLength / 8);
-    logger.debug(`parseQueryResult: rowCount = ${rowCount}`);
+    logger.debug(`parseQueryResult: rowCount = ${rowCount}, valueColumnStartIndex = ${valueColumnStartIndex}`);
     
-    // Parse value columns (start from index 1, index 0 is time)
+    // Parse value columns
     const parsedColumns: any[][] = [];
-    for (let colIndex = 1; colIndex < queryResult.length; colIndex++) {
+    for (let colIndex = valueColumnStartIndex; colIndex < queryResult.length; colIndex++) {
       const valueBuffer = Buffer.isBuffer(queryResult[colIndex]) 
         ? queryResult[colIndex] 
         : Buffer.from(queryResult[colIndex]);
       
       // Get data type - dataTypes array corresponds to value columns (not including time)
-      let dataType = 5; // Default to TEXT
-      const typeIndex = colIndex - 1; // Adjust index since queryResult[0] is time
-      if (dataTypes && dataTypes[typeIndex] !== undefined) {
-        const typeStr = String(dataTypes[typeIndex]).toUpperCase();
-        if (typeStr.includes('BOOLEAN')) dataType = 0;
-        else if (typeStr.includes('INT32')) dataType = 1;
-        else if (typeStr.includes('INT64')) dataType = 2;
-        else if (typeStr.includes('FLOAT')) dataType = 3;
-        else if (typeStr.includes('DOUBLE')) dataType = 4;
-        else if (typeStr.includes('TEXT')) dataType = 5;
-        else if (typeStr.includes('TIMESTAMP')) dataType = 8;
-        else if (typeStr.includes('DATE')) dataType = 9;
-        else if (typeStr.includes('BLOB')) dataType = 10;
-        else if (typeStr.includes('STRING')) dataType = 11;
-      }
+      const dataTypeIndex = colIndex - valueColumnStartIndex;
+      const dataType = this.getDataTypeCode(dataTypes[dataTypeIndex]);
       
-      logger.debug(`parseQueryResult: column ${colIndex}, dataType = ${dataType}, valueBuffer.length = ${valueBuffer.length}`);
+      logger.debug(`parseQueryResult: column ${colIndex}, dataTypeIndex=${dataTypeIndex}, dataType = ${dataType}, valueBuffer.length = ${valueBuffer.length}`);
       
       // Note: queryResult format may not have separate bitmap, nulls may be indicated differently
       // For now, pass null bitmap and deserialize the column
@@ -451,8 +461,8 @@ export class Session {
     for (let i = 0; i < rowCount; i++) {
       const row: any[] = [];
       
-      // Add timestamp
-      if (i * 8 + 8 <= timeBufferLength) {
+      // Add timestamp if time column is present
+      if (timeBuffer && timeBuffer.length >= (i * 8 + 8)) {
         row.push(timeBuffer.readBigInt64LE(i * 8));
       }
       
@@ -466,6 +476,64 @@ export class Session {
 
     logger.debug(`parseQueryResult: returning ${rows.length} rows`);
     return rows;
+  }
+
+  /**
+   * Helper method to convert data type string to numeric code
+   */
+  private getDataTypeCode(typeStr: string | undefined): number {
+    if (!typeStr) return 5; // Default to TEXT
+    
+    const type = String(typeStr).toUpperCase();
+    if (type.includes('BOOLEAN')) return 0;
+    else if (type.includes('INT32')) return 1;
+    else if (type.includes('INT64')) return 2;
+    else if (type.includes('FLOAT')) return 3;
+    else if (type.includes('DOUBLE')) return 4;
+    else if (type.includes('TEXT')) return 5;
+    else if (type.includes('TIMESTAMP')) return 8;
+    else if (type.includes('DATE')) return 9;
+    else if (type.includes('BLOB')) return 10;
+    else if (type.includes('STRING')) return 11;
+    return 5; // Default to TEXT
+  }
+
+  /**
+   * Helper method to determine row count from a buffer based on data type
+   */
+  private getRowCountFromBuffer(buffer: Buffer, dataType: number): number {
+    const length = buffer.length;
+    
+    // Calculate based on fixed-size types
+    switch (dataType) {
+      case 0: // BOOLEAN - 1 byte per value
+        return length;
+      case 1: // INT32 - 4 bytes per value
+      case 9: // DATE - 4 bytes per value
+        return Math.floor(length / 4);
+      case 2: // INT64 - 8 bytes per value
+      case 8: // TIMESTAMP - 8 bytes per value
+        return Math.floor(length / 8);
+      case 3: // FLOAT - 4 bytes per value
+        return Math.floor(length / 4);
+      case 4: // DOUBLE - 8 bytes per value
+        return Math.floor(length / 8);
+      case 5: // TEXT - variable length, need to parse
+      case 10: // BLOB - variable length
+      case 11: // STRING - variable length
+        // For variable-length types, count entries by parsing length prefixes
+        let count = 0;
+        let offset = 0;
+        while (offset + 4 <= length) {
+          const strLength = buffer.readInt32BE(offset);
+          offset += 4 + strLength;
+          count++;
+        }
+        return count;
+      default:
+        logger.warn(`Unknown data type ${dataType}, cannot determine row count`);
+        return 0;
+    }
   }
 
   // parseDataSet is used by SessionDataSet for parsing query results
