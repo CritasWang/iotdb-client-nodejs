@@ -247,9 +247,10 @@ export class Session {
       case 11: { // STRING (similar to TEXT)
         const strBuffers = values.map((v) => {
           const str = (v === null || v === undefined) ? '' : String(v);
+          const strBytes = Buffer.from(str, 'utf8');
           const len = Buffer.alloc(4);
-          len.writeInt32LE(str.length);
-          return Buffer.concat([len, Buffer.from(str, 'utf8')]);
+          len.writeInt32LE(strBytes.length); // Write byte length, not character length
+          return Buffer.concat([len, strBytes]);
         });
         return Buffer.concat(strBuffers);
       }
