@@ -185,6 +185,13 @@ describe("Multi-Node E2E Tests", () => {
     const results = await Promise.all(promises);
     expect(results).toHaveLength(operationsPerNode * 3);
 
+    // Close all SessionDataSet objects from query operations
+    for (const result of results) {
+      if (result && typeof result.close === "function") {
+        await result.close();
+      }
+    }
+
     console.log(
       `Completed ${operationsPerNode * 3} concurrent operations across 3 DataNodes`,
     );
@@ -212,19 +219,42 @@ describe("Multi-Node E2E Tests", () => {
     await new Promise((resolve) => setTimeout(resolve, 2000));
 
     // Query from all three DataNodes - should see the same data
-    const result1 = await pool1.executeQueryStatement(
+    const dataSet1 = await pool1.executeQueryStatement(
       "SELECT COUNT(*) FROM root.test.device1",
     );
-    const result2 = await pool2.executeQueryStatement(
+    const dataSet2 = await pool2.executeQueryStatement(
       "SELECT COUNT(*) FROM root.test.device1",
     );
-    const result3 = await pool3.executeQueryStatement(
+    const dataSet3 = await pool3.executeQueryStatement(
       "SELECT COUNT(*) FROM root.test.device1",
     );
 
-    expect(result1.rows.length).toBeGreaterThan(0);
-    expect(result2.rows.length).toBeGreaterThan(0);
-    expect(result3.rows.length).toBeGreaterThan(0);
+    let count1 = 0;
+    let count2 = 0;
+    let count3 = 0;
+
+    while (await dataSet1.hasNext()) {
+      await dataSet1.next();
+      count1++;
+    }
+
+    while (await dataSet2.hasNext()) {
+      await dataSet2.next();
+      count2++;
+    }
+
+    while (await dataSet3.hasNext()) {
+      await dataSet3.next();
+      count3++;
+    }
+
+    await dataSet1.close();
+    await dataSet2.close();
+    await dataSet3.close();
+
+    expect(count1).toBeGreaterThan(0);
+    expect(count2).toBeGreaterThan(0);
+    expect(count3).toBeGreaterThan(0);
 
     console.log(
       `Data replicated across all DataNodes - verified queries from ports 6667, 6668, 6669`,
@@ -257,11 +287,19 @@ describe("Multi-Node E2E Tests", () => {
     });
 
     // Verify data from different DataNode
-    const result = await pool2.executeQueryStatement(
+    const dataSet = await pool2.executeQueryStatement(
       "SELECT COUNT(*) FROM root.test.device1",
     );
 
-    expect(result.rows.length).toBeGreaterThan(0);
+    let rowCount = 0;
+    while (await dataSet.hasNext()) {
+      await dataSet.next();
+      rowCount++;
+    }
+
+    await dataSet.close();
+
+    expect(rowCount).toBeGreaterThan(0);
     console.log(
       `Inserted ${batchSize} records via DataNode1, queried via DataNode2`,
     );
@@ -285,7 +323,12 @@ describe("Multi-Node E2E Tests", () => {
       promises.push(pool3.executeQueryStatement("SHOW DATABASES"));
     }
 
-    await Promise.all(promises);
+    const dataSets = await Promise.all(promises);
+
+    // Close all SessionDataSets
+    for (const dataSet of dataSets) {
+      await dataSet.close();
+    }
 
     // Pools should maintain their sizes
     expect(pool1.getPoolSize()).toBeGreaterThanOrEqual(initialSize1);
@@ -301,17 +344,40 @@ describe("Multi-Node E2E Tests", () => {
     }
 
     // Execute queries simultaneously on all three DataNodes
-    const [result1, result2, result3] = await Promise.all([
+    const [dataSet1, dataSet2, dataSet3] = await Promise.all([
       pool1.executeQueryStatement("SELECT * FROM root.test.device1 LIMIT 5"),
       pool2.executeQueryStatement("SELECT * FROM root.test.device1 LIMIT 5"),
       pool3.executeQueryStatement("SELECT * FROM root.test.device1 LIMIT 5"),
     ]);
 
-    expect(result1.rows.length).toBeGreaterThan(0);
-    expect(result2.rows.length).toBeGreaterThan(0);
-    expect(result3.rows.length).toBeGreaterThan(0);
+    let count1 = 0;
+    let count2 = 0;
+    let count3 = 0;
+
+    while (await dataSet1.hasNext()) {
+      await dataSet1.next();
+      count1++;
+    }
+
+    while (await dataSet2.hasNext()) {
+      await dataSet2.next();
+      count2++;
+    }
+
+    while (await dataSet3.hasNext()) {
+      await dataSet3.next();
+      count3++;
+    }
+
+    await dataSet1.close();
+    await dataSet2.close();
+    await dataSet3.close();
+
+    expect(count1).toBeGreaterThan(0);
+    expect(count2).toBeGreaterThan(0);
+    expect(count3).toBeGreaterThan(0);
     console.log(
-      `Simultaneous queries across 3 DataNodes: DN1=${result1.rows.length}, DN2=${result2.rows.length}, DN3=${result3.rows.length} rows`,
+      `Simultaneous queries across 3 DataNodes: DN1=${count1}, DN2=${count2}, DN3=${count3} rows`,
     );
   });
 
@@ -339,8 +405,9 @@ describe("Multi-Node E2E Tests", () => {
       expect(nodeUrlsPool.getPoolSize()).toBeGreaterThanOrEqual(3);
 
       // Execute a query to verify it works
-      const result = await nodeUrlsPool.executeQueryStatement("SHOW DATABASES");
-      expect(result.rows).toBeDefined();
+      const dataSet = await nodeUrlsPool.executeQueryStatement("SHOW DATABASES");
+      expect(dataSet.getColumnNames()).toBeDefined();
+      await dataSet.close();
 
       console.log("nodeUrls string format configuration working correctly");
     } finally {
@@ -372,8 +439,9 @@ describe("Multi-Node E2E Tests", () => {
       expect(nodeUrlsPool.getPoolSize()).toBeGreaterThanOrEqual(3);
 
       // Execute a query to verify it works
-      const result = await nodeUrlsPool.executeQueryStatement("SHOW DATABASES");
-      expect(result.rows).toBeDefined();
+      const dataSet = await nodeUrlsPool.executeQueryStatement("SHOW DATABASES");
+      expect(dataSet.getColumnNames()).toBeDefined();
+      await dataSet.close();
 
       console.log("nodeUrls object format configuration working correctly");
     } finally {
