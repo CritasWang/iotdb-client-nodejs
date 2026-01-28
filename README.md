@@ -638,9 +638,32 @@ See the `examples/` directory for more usage examples:
 - `examples/multi-node.ts` - Multi-node configuration
 - `examples/ssl-connection.ts` - SSL/TLS connection
 
+## Documentation
+
+Comprehensive documentation is available in the [docs/](docs/) directory:
+
+### For Users
+- **[Implementation Guide](docs/implementation.md)** - Architecture and core components
+- **[Data Types Reference](docs/data-types.md)** - Complete data type documentation
+- **[TypeScript Examples](docs/typescript-examples.md)** - TypeScript usage guide
+- **[Thrift Documentation](docs/thrift.md)** - Thrift code generation
+
+### For Contributors
+- **[Contributing Guidelines](CONTRIBUTING.md)** - How to contribute
+- **[Build Infrastructure](docs/development/build-infrastructure.md)** - Build system details
+- **[Debugging E2E Tests](docs/development/debugging-e2e.md)** - Testing guide
+- **[Test Database Reference](docs/development/test-database.md)** - Test setup
+
+### Additional Resources
+- **[Project Status](docs/project-status.md)** - Implementation status and roadmap
+- **[Changelog](CHANGELOG.md)** - Version history
+- **[GitHub Workflows](.github/workflows/README.md)** - CI/CD documentation
+
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed guidelines.
 
 ## License
 
