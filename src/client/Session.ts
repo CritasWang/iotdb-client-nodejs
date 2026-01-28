@@ -249,7 +249,7 @@ export class Session {
           const str = (v === null || v === undefined) ? '' : String(v);
           const strBytes = Buffer.from(str, 'utf8');
           const len = Buffer.alloc(4);
-          len.writeInt32LE(strBytes.length); // Write byte length, not character length
+          len.writeInt32BE(strBytes.length); // Write byte length in big-endian (Java standard)
           return Buffer.concat([len, strBytes]);
         });
         return Buffer.concat(strBuffers);
@@ -280,7 +280,7 @@ export class Session {
         const blobBuffers = values.map((v) => {
           const blob = (v === null || v === undefined) ? Buffer.alloc(0) : (Buffer.isBuffer(v) ? v : Buffer.from(v));
           const len = Buffer.alloc(4);
-          len.writeInt32LE(blob.length);
+          len.writeInt32BE(blob.length); // Write byte length in big-endian (Java standard)
           return Buffer.concat([len, blob]);
         });
         return Buffer.concat(blobBuffers);
