@@ -302,7 +302,8 @@ export class Session {
       
       if (columnHasNull && bitMap) {
         // Calculate number of bytes needed for bitmap (1 bit per row)
-        const bitmapByteCount = Math.floor(rowCount / 8) + 1;
+        // Use Math.ceil to properly round up only when needed
+        const bitmapByteCount = Math.ceil(rowCount / 8);
         const bitmapBytes = Buffer.alloc(bitmapByteCount);
         
         // Set bits in bitmap (1 = null, 0 = not null)

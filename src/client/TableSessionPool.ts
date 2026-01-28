@@ -54,6 +54,12 @@ export class TableSessionPool extends BaseSessionPool {
 
     // Set session to table model by executing a USE DATABASE command if database is specified
     if (this.config.database) {
+      // Validate database name to prevent SQL injection
+      // IoTDB database names should only contain alphanumeric characters, underscores, hyphens, and dots
+      const databaseNameRegex = /^[a-zA-Z0-9_.-]+$/;
+      if (!databaseNameRegex.test(this.config.database)) {
+        throw new Error(`Invalid database name: ${this.config.database}. Database names must only contain alphanumeric characters, underscores, hyphens, and dots.`);
+      }
       await session.executeNonQueryStatement(`USE ${this.config.database}`);
     }
 
