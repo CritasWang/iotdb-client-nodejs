@@ -44,21 +44,22 @@ await session.open();
 // Execute non-query statement
 await session.executeNonQueryStatement('CREATE DATABASE root.test');
 
-// Execute query with SessionDataSet (recommended - memory efficient)
-const dataSet = await session.executeQuery('SELECT * FROM root.test.**');
+// Execute query with SessionDataSet (iterator pattern - memory efficient)
+const dataSet = await session.executeQueryStatement('SELECT * FROM root.test.**');
 while (await dataSet.hasNext()) {
   const row = dataSet.next();
   console.log(row.getTimestamp(), row.getFields());
 }
 await dataSet.close();
 
-// Or execute query statement to get all results at once (deprecated for large datasets)
-const result = await session.executeQueryStatement('SHOW DATABASES');
-console.log('Columns:', result.columns);
-console.log('Rows:', result.rows);
+// Or use toArray() helper for small result sets (loads all into memory)
+const dataSet2 = await session.executeQueryStatement('SHOW DATABASES');
+const allRows = await dataSet2.toArray(); // Returns [[timestamp, ...fields], ...]
+console.log('All rows:', allRows);
 
 // Execute query with custom timeout (30 seconds)
-const customResult = await session.executeQueryStatement('SELECT * FROM root.test.**', 30000);
+const customDataSet = await session.executeQueryStatement('SELECT * FROM root.test.**', 30000);
+// ... iterate and close
 
 // Insert tablet data
 await session.insertTablet({
@@ -99,9 +100,9 @@ await session.open();
 await session.close();
 ```
 
-### Query Results with SessionDataSet (Recommended)
+### Query Results with SessionDataSet
 
-For efficient handling of query results, especially large datasets, use the SessionDataSet iterator pattern:
+The `executeQueryStatement()` method returns a SessionDataSet for efficient iteration through query results:
 
 ```typescript
 import { Session, SessionDataSet, RowRecord } from 'iotdb-client-nodejs';
@@ -117,7 +118,7 @@ const session = new Session({
 await session.open();
 
 // Execute query and get SessionDataSet
-const dataSet: SessionDataSet = await session.executeQuery(
+const dataSet: SessionDataSet = await session.executeQueryStatement(
   'SELECT temperature, humidity FROM root.test.device1'
 );
 

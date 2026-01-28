@@ -28,7 +28,7 @@ const session = new Session({
 await session.open();
 
 // Execute query and get SessionDataSet
-const dataSet = await session.executeQuery('SELECT * FROM root.test.d1');
+const dataSet = await session.executeQueryStatement('SELECT * FROM root.test.d1');
 
 // Iterate through results
 while (await dataSet.hasNext()) {
@@ -184,7 +184,7 @@ const session = new Session({
   fetchSize: 1024, // Fetch 1024 rows at a time
 });
 
-const dataSet = await session.executeQuery('SELECT * FROM root.test.d1');
+const dataSet = await session.executeQueryStatement('SELECT * FROM root.test.d1');
 // Will automatically fetch in batches of 1024 rows
 ```
 
@@ -193,7 +193,7 @@ const dataSet = await session.executeQuery('SELECT * FROM root.test.d1');
 For very large result sets, use iterator pattern to avoid memory issues:
 
 ```typescript
-const dataSet = await session.executeQuery('SELECT * FROM root.large_dataset');
+const dataSet = await session.executeQueryStatement('SELECT * FROM root.large_dataset');
 
 let count = 0;
 let sum = 0;
@@ -221,7 +221,7 @@ Always use try-finally to ensure cleanup:
 ```typescript
 let dataSet;
 try {
-  dataSet = await session.executeQuery('SELECT * FROM root.test.d1');
+  dataSet = await session.executeQueryStatement('SELECT * FROM root.test.d1');
   
   while (await dataSet.hasNext()) {
     const row = dataSet.next();
@@ -240,7 +240,7 @@ try {
 ### Working with Multiple Columns
 
 ```typescript
-const dataSet = await session.executeQuery(`
+const dataSet = await session.executeQueryStatement(`
   SELECT temperature, humidity, pressure, status
   FROM root.weather.station1
   WHERE time > now() - 1h
@@ -269,7 +269,7 @@ await dataSet.close();
 ### Aggregation Queries
 
 ```typescript
-const dataSet = await session.executeQuery(`
+const dataSet = await session.executeQueryStatement(`
   SELECT AVG(temperature), MAX(temperature), MIN(temperature)
   FROM root.test.d1
   GROUP BY ([2024-01-01, 2024-02-01), 1d)
@@ -289,27 +289,28 @@ while (await dataSet.hasNext()) {
 await dataSet.close();
 ```
 
-## Migration from QueryResult
+## Migration from Old Pattern
 
-### Old Approach (Deprecated)
+The old pattern loaded all data into memory at once. The new pattern uses lazy loading with iterators.
+
+### Old Approach (No Longer Supported)
 
 ```typescript
-// ❌ Old way - loads all data into memory
-const result = await session.executeQueryStatement('SELECT * FROM root.test.d1');
-
-for (const row of result.rows) {
-  const timestamp = row[0];
-  const value1 = row[1];
-  const value2 = row[2];
-  console.log(timestamp, value1, value2);
-}
+// ❌ This no longer works - executeQueryStatement now returns SessionDataSet
+// const result = await session.executeQueryStatement('SELECT * FROM root.test.d1');
+// for (const row of result.rows) {
+//   const timestamp = row[0];
+//   const value1 = row[1];
+//   const value2 = row[2];
+//   console.log(timestamp, value1, value2);
+// }
 ```
 
-### New Approach (Recommended)
+### New Approach (Current Implementation)
 
 ```typescript
 // ✅ New way - lazy loading with iterator
-const dataSet = await session.executeQuery('SELECT * FROM root.test.d1');
+const dataSet = await session.executeQueryStatement('SELECT * FROM root.test.d1');
 
 while (await dataSet.hasNext()) {
   const row = dataSet.next();
@@ -323,6 +324,25 @@ while (await dataSet.hasNext()) {
 
 await dataSet.close();
 ```
+
+### Migration Steps
+
+1. **Change method call**: `executeQueryStatement()` now returns `SessionDataSet` (not `QueryResult`)
+2. **Replace array access**: Use iterator pattern instead of `result.rows`
+3. **Update row access**: Use `RowRecord` methods instead of array indices
+4. **Add cleanup**: Always call `await dataSet.close()`
+
+### For Small Datasets
+
+If you need all data at once for small result sets, use `toArray()`:
+
+```typescript
+const dataSet = await session.executeQueryStatement('SELECT * FROM root.test.d1');
+const allRows = await dataSet.toArray(); // Loads everything into memory
+// allRows is [[timestamp, value1, value2], ...]
+```
+
+⚠️ **Warning**: `toArray()` loads all data into memory. Only use for small result sets.
 
 ## Best Practices
 
@@ -343,7 +363,7 @@ await dataSet.close();
 2. **Batch Processing**: Process rows in batches for better performance
 
 ```typescript
-const dataSet = await session.executeQuery('SELECT * FROM root.test.d1');
+const dataSet = await session.executeQueryStatement('SELECT * FROM root.test.d1');
 const batch = [];
 
 while (await dataSet.hasNext()) {
