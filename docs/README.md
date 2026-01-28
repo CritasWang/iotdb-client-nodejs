@@ -14,6 +14,7 @@ This directory contains comprehensive documentation for the Apache IoTDB Node.js
 - [Data Types](data-types.md) - Supported data types and usage
 - [TypeScript Examples](typescript-examples.md) - TypeScript usage examples
 - [Thrift Documentation](thrift.md) - Thrift code generation and definitions
+- [SessionDataSet Guide](sessiondataset-guide.md) - Iterator pattern for query results
 
 ### Development
 - [Build Infrastructure](development/build-infrastructure.md) - Build system analysis
@@ -28,6 +29,7 @@ This directory contains comprehensive documentation for the Apache IoTDB Node.js
 ### For Users
 - **New to IoTDB?** Start with the [Main README](../README.md)
 - **Using TypeScript?** Check [TypeScript Examples](typescript-examples.md)
+- **Querying data?** See [SessionDataSet Guide](sessiondataset-guide.md)
 - **Need specific data types?** See [Data Types](data-types.md)
 
 ### For Contributors

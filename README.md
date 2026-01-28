@@ -44,7 +44,15 @@ await session.open();
 // Execute non-query statement
 await session.executeNonQueryStatement('CREATE DATABASE root.test');
 
-// Execute query statement with default timeout (60 seconds)
+// Execute query with SessionDataSet (recommended - memory efficient)
+const dataSet = await session.executeQuery('SELECT * FROM root.test.**');
+while (await dataSet.hasNext()) {
+  const row = dataSet.next();
+  console.log(row.getTimestamp(), row.getFields());
+}
+await dataSet.close();
+
+// Or execute query statement to get all results at once (deprecated for large datasets)
 const result = await session.executeQueryStatement('SHOW DATABASES');
 console.log('Columns:', result.columns);
 console.log('Rows:', result.rows);
@@ -90,6 +98,56 @@ await session.open();
 // ... use session
 await session.close();
 ```
+
+### Query Results with SessionDataSet (Recommended)
+
+For efficient handling of query results, especially large datasets, use the SessionDataSet iterator pattern:
+
+```typescript
+import { Session, SessionDataSet, RowRecord } from 'iotdb-client-nodejs';
+
+const session = new Session({
+  host: 'localhost',
+  port: 6667,
+  username: 'root',
+  password: 'root',
+  fetchSize: 1024, // Rows per fetch
+});
+
+await session.open();
+
+// Execute query and get SessionDataSet
+const dataSet: SessionDataSet = await session.executeQuery(
+  'SELECT temperature, humidity FROM root.test.device1'
+);
+
+// Iterate through results efficiently
+while (await dataSet.hasNext()) {
+  const row: RowRecord = dataSet.next();
+  
+  // Access by column name
+  const temp = row.getFloat('temperature');
+  const humidity = row.getFloat('humidity');
+  
+  // Access by index
+  const timestamp = row.getTimestamp();
+  
+  console.log(`${timestamp}: temp=${temp}, humidity=${humidity}`);
+}
+
+// Always close the dataset
+await dataSet.close();
+await session.close();
+```
+
+**Benefits of SessionDataSet:**
+- ✅ **Memory Efficient**: Only keeps current batch in memory
+- ✅ **Lazy Loading**: Fetches data on-demand
+- ✅ **Large Datasets**: Can handle results larger than available RAM
+- ✅ **Type Safety**: Typed getters prevent errors
+- ✅ **Resource Management**: Proper cleanup with `close()`
+
+See [SessionDataSet Guide](docs/sessiondataset-guide.md) for complete documentation.
 
 ### SessionPool Usage
 
