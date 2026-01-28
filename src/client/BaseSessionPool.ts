@@ -17,7 +17,7 @@
  * under the License.
  */
 
-import { Session, QueryResult, Tablet } from "./Session";
+import { Session, QueryResult, Tablet, SessionDataSet } from "./Session";
 import {
   PoolConfig,
   DEFAULT_POOL_CONFIG,
@@ -236,10 +236,14 @@ export abstract class BaseSessionPool {
     );
   }
 
+  /**
+   * Execute a query statement and return SessionDataSet
+   * Automatically manages session from the pool
+   */
   async executeQueryStatement(
     sql: string,
     timeoutMs: number = 60000,
-  ): Promise<QueryResult> {
+  ): Promise<SessionDataSet> {
     const session = await this.getSession();
     try {
       return await session.executeQueryStatement(sql, timeoutMs);

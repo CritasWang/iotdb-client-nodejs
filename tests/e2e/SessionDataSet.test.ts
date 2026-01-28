@@ -77,7 +77,7 @@ describe('SessionDataSet E2E Tests', () => {
     }
 
     // Query using SessionDataSet
-    const dataSet = await session.executeQuery(
+    const dataSet = await session.executeQueryStatement(
       'SELECT s1, s2 FROM root.dataset_test.d1'
     );
 
@@ -143,7 +143,7 @@ describe('SessionDataSet E2E Tests', () => {
 
     await smallSession.open();
 
-    const dataSet = await smallSession.executeQuery(
+    const dataSet = await smallSession.executeQueryStatement(
       'SELECT value FROM root.large_test.d1'
     );
 
@@ -186,7 +186,7 @@ describe('SessionDataSet E2E Tests', () => {
       `INSERT INTO root.column_test.d1(timestamp, temperature, humidity) VALUES(${now}, 23.5, 65.2)`
     );
 
-    const dataSet = await session.executeQuery(
+    const dataSet = await session.executeQueryStatement(
       'SELECT temperature, humidity FROM root.column_test.d1'
     );
 
@@ -235,7 +235,7 @@ describe('SessionDataSet E2E Tests', () => {
       `INSERT INTO root.null_test.d1(timestamp, s1) VALUES(${now}, 100)`
     );
 
-    const dataSet = await session.executeQuery(
+    const dataSet = await session.executeQueryStatement(
       'SELECT s1, s2 FROM root.null_test.d1'
     );
 
@@ -275,7 +275,7 @@ describe('SessionDataSet E2E Tests', () => {
       );
     }
 
-    const dataSet = await session.executeQuery(
+    const dataSet = await session.executeQueryStatement(
       'SELECT value FROM root.array_test.d1'
     );
 
@@ -295,7 +295,7 @@ describe('SessionDataSet E2E Tests', () => {
       return;
     }
 
-    const dataSet = await session.executeQuery('SHOW DATABASES');
+    const dataSet = await session.executeQueryStatement('SHOW DATABASES');
 
     // Close without iterating through all results
     await dataSet.close();

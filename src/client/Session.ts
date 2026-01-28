@@ -25,6 +25,9 @@ import { RowRecord } from './RowRecord';
 
 const ttypes = require('../thrift/generated/client_types');
 
+/**
+ * @deprecated QueryResult is deprecated. Use SessionDataSet instead.
+ */
 export interface QueryResult {
   columns: string[];
   dataTypes: string[];
@@ -86,8 +89,7 @@ export class Session {
 
   /**
    * Execute a query and return a SessionDataSet for iterating through results.
-   * This is the recommended method for querying data as it supports lazy loading
-   * and proper resource management.
+   * This method supports lazy loading and proper resource management.
    * 
    * @param sql SQL query statement
    * @param timeoutMs Query timeout in milliseconds (default: 60000)
@@ -95,7 +97,7 @@ export class Session {
    * 
    * @example
    * ```typescript
-   * const dataSet = await session.executeQuery('SELECT * FROM root.test');
+   * const dataSet = await session.executeQueryStatement('SELECT * FROM root.test');
    * while (await dataSet.hasNext()) {
    *   const row = dataSet.next();
    *   console.log(row.getTimestamp(), row.getFields());
@@ -103,7 +105,7 @@ export class Session {
    * await dataSet.close();
    * ```
    */
-  async executeQuery(sql: string, timeoutMs: number = 60000): Promise<SessionDataSet> {
+  async executeQueryStatement(sql: string, timeoutMs: number = 60000): Promise<SessionDataSet> {
     logger.debug(`Executing query: ${sql}`);
 
     const client = this.connection.getClient();
@@ -155,53 +157,6 @@ export class Session {
           );
 
           resolve(dataSet);
-        } catch (parseError) {
-          reject(parseError);
-        }
-      });
-    });
-  }
-
-  /**
-   * Execute a query and return all results at once.
-   * @deprecated Use executeQuery() instead for better memory efficiency with large result sets
-   * 
-   * @param sql SQL query statement
-   * @param timeoutMs Query timeout in milliseconds (default: 60000)
-   * @returns QueryResult containing all rows
-   */
-  async executeQueryStatement(sql: string, timeoutMs: number = 60000): Promise<QueryResult> {
-    logger.debug(`Executing query: ${sql}`);
-
-    const client = this.connection.getClient();
-    const sessionId = this.connection.getSessionId();
-    const statementId = this.connection.getStatementId();
-
-    const req = new ttypes.TSExecuteStatementReq({
-      sessionId: sessionId,
-      statement: sql,
-      statementId: statementId,
-      fetchSize: this.config.fetchSize,
-      timeout: timeoutMs,
-      enableRedirectQuery: true,
-      jdbcQuery: true,
-    });
-
-    return new Promise((resolve, reject) => {
-      client.executeQueryStatementV2(req, async (err: Error, response: any) => {
-        if (err) {
-          reject(err);
-          return;
-        }
-
-        if (response.status.code !== 200) {
-          reject(new Error(response.status.message || 'Query failed'));
-          return;
-        }
-
-        try {
-          const result = await this.parseQueryResult(response);
-          resolve(result);
         } catch (parseError) {
           reject(parseError);
         }
@@ -412,73 +367,9 @@ export class Session {
     return Buffer.concat(buffers);
   }
 
-  private async parseQueryResult(response: any): Promise<QueryResult> {
-    const result: QueryResult = {
-      columns: response.columns || [],
-      dataTypes: response.dataTypeList || [],
-      rows: [],
-      queryId: response.queryId,
-    };
-
-    if (response.queryDataSet) {
-      const dataset = response.queryDataSet;
-      result.rows = await this.parseDataSet(
-        dataset,
-        response.columns.length,
-        response.dataTypeList
-      );
-    }
-
-    // Fetch more data if available
-    if (response.moreData) {
-      const moreRows = await this.fetchResults(response.queryId);
-      result.rows.push(...moreRows);
-    }
-
-    return result;
-  }
-
-  private async fetchResults(queryId: number): Promise<any[][]> {
-    const client = this.connection.getClient();
-    const sessionId = this.connection.getSessionId();
-
-    const req = new ttypes.TSFetchResultsReq({
-      sessionId: sessionId,
-      statement: '',
-      fetchSize: this.config.fetchSize || 1024,
-      queryId: queryId,
-      isAlign: true,
-    });
-
-    return new Promise((resolve, reject) => {
-      client.fetchResultsV2(req, async (err: Error, response: any) => {
-        if (err) {
-          reject(err);
-          return;
-        }
-
-        if (response.status.code !== 200) {
-          reject(new Error(response.status.message || 'Fetch results failed'));
-          return;
-        }
-
-        const rows = await this.parseDataSet(
-          response.queryDataSet,
-          response.queryDataSet?.valueList?.length || 0,
-          []
-        );
-
-        if (response.moreData) {
-          const moreRows = await this.fetchResults(queryId);
-          resolve([...rows, ...moreRows]);
-        } else {
-          resolve(rows);
-        }
-      });
-    });
-  }
-
-  private async parseDataSet(
+  // parseDataSet is used by SessionDataSet for parsing query results
+  // Keep it as public for SessionDataSet to access
+  async parseDataSet(
     dataset: any,
     _columnCount: number,
     dataTypes: string[]
