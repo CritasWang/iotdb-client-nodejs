@@ -193,15 +193,35 @@ export class Session {
 
   private serializeTabletValues(tablet: Tablet): Buffer {
     // Serialize tablet values based on data types
+    // Format: all columns data, then bitmap for null values
     const buffers: Buffer[] = [];
+    const bitMaps: (boolean[] | null)[] = [];
 
+    // Serialize each column
     for (let colIndex = 0; colIndex < tablet.measurements.length; colIndex++) {
       const dataType = tablet.dataTypes[colIndex];
       const columnValues = tablet.values.map((row) => row[colIndex]);
 
+      // Track null values for this column
+      const nullBitmap: boolean[] = [];
+      let hasNull = false;
+      
+      for (let rowIndex = 0; rowIndex < columnValues.length; rowIndex++) {
+        const isNull = columnValues[rowIndex] === null || columnValues[rowIndex] === undefined;
+        nullBitmap.push(isNull);
+        if (isNull) {
+          hasNull = true;
+        }
+      }
+
       const buffer = this.serializeColumn(columnValues, dataType);
       buffers.push(buffer);
+      bitMaps.push(hasNull ? nullBitmap : null);
     }
+
+    // Append bitmap information
+    const bitmapBuffer = this.serializeBitMaps(bitMaps, tablet.timestamps.length);
+    buffers.push(bitmapBuffer);
 
     return Buffer.concat(buffers);
   }
@@ -212,21 +232,21 @@ export class Session {
     // VECTOR(6), UNKNOWN(7), TIMESTAMP(8), DATE(9), BLOB(10), STRING(11), OBJECT(12)
     switch (dataType) {
       case 0: // BOOLEAN
-        return Buffer.from(values.map((v) => (v ? 1 : 0)));
+        return Buffer.from(values.map((v) => (v === null || v === undefined) ? 0 : (v ? 1 : 0)));
       case 1: // INT32
-        return Buffer.from(new Int32Array(values).buffer);
+        return Buffer.from(new Int32Array(values.map(v => (v === null || v === undefined) ? 0 : v)).buffer);
       case 2: // INT64
-        return Buffer.from(new BigInt64Array(values.map(BigInt)).buffer);
+        return Buffer.from(new BigInt64Array(values.map(v => (v === null || v === undefined) ? BigInt(0) : BigInt(v))).buffer);
       case 3: { // FLOAT
-        return Buffer.from(new Float32Array(values).buffer);
+        return Buffer.from(new Float32Array(values.map(v => (v === null || v === undefined) ? 0.0 : v)).buffer);
       }
       case 4: { // DOUBLE
-        return Buffer.from(new Float64Array(values).buffer);
+        return Buffer.from(new Float64Array(values.map(v => (v === null || v === undefined) ? 0.0 : v)).buffer);
       }
       case 5: // TEXT
       case 11: { // STRING (similar to TEXT)
         const strBuffers = values.map((v) => {
-          const str = String(v);
+          const str = (v === null || v === undefined) ? '' : String(v);
           const len = Buffer.alloc(4);
           len.writeInt32LE(str.length);
           return Buffer.concat([len, Buffer.from(str, 'utf8')]);
@@ -235,6 +255,9 @@ export class Session {
       }
       case 8: { // TIMESTAMP (stored as INT64 - milliseconds)
         return Buffer.from(new BigInt64Array(values.map(v => {
+          if (v === null || v === undefined) {
+            return BigInt(0);
+          }
           if (v instanceof Date) {
             return BigInt(v.getTime());
           }
@@ -243,6 +266,9 @@ export class Session {
       }
       case 9: { // DATE (stored as INT32 - days since epoch)
         return Buffer.from(new Int32Array(values.map(v => {
+          if (v === null || v === undefined) {
+            return 0;
+          }
           if (v instanceof Date) {
             return Math.floor(v.getTime() / (24 * 60 * 60 * 1000));
           }
@@ -251,7 +277,7 @@ export class Session {
       }
       case 10: { // BLOB
         const blobBuffers = values.map((v) => {
-          const blob = Buffer.isBuffer(v) ? v : Buffer.from(v);
+          const blob = (v === null || v === undefined) ? Buffer.alloc(0) : (Buffer.isBuffer(v) ? v : Buffer.from(v));
           const len = Buffer.alloc(4);
           len.writeInt32LE(blob.length);
           return Buffer.concat([len, blob]);
@@ -261,6 +287,37 @@ export class Session {
       default:
         throw new Error(`Unsupported data type: ${dataType}`);
     }
+  }
+
+  private serializeBitMaps(bitMaps: (boolean[] | null)[], rowCount: number): Buffer {
+    // Serialize bitmap information for null values
+    // Format: for each column, one byte indicating if column has null, followed by bitmap bytes if it does
+    const buffers: Buffer[] = [];
+    
+    for (const bitMap of bitMaps) {
+      const columnHasNull = bitMap !== null;
+      // Write one byte: 1 if column has null, 0 if not
+      buffers.push(Buffer.from([columnHasNull ? 1 : 0]));
+      
+      if (columnHasNull && bitMap) {
+        // Calculate number of bytes needed for bitmap (1 bit per row)
+        const bitmapByteCount = Math.floor(rowCount / 8) + 1;
+        const bitmapBytes = Buffer.alloc(bitmapByteCount);
+        
+        // Set bits in bitmap (1 = null, 0 = not null)
+        for (let i = 0; i < bitMap.length; i++) {
+          if (bitMap[i]) {
+            const byteIndex = Math.floor(i / 8);
+            const bitIndex = i % 8;
+            bitmapBytes[byteIndex] |= (1 << bitIndex);
+          }
+        }
+        
+        buffers.push(bitmapBytes);
+      }
+    }
+    
+    return Buffer.concat(buffers);
   }
 
   private async parseQueryResult(response: any): Promise<QueryResult> {

@@ -108,12 +108,19 @@ export class Connection {
   }
 
   private async openSession(): Promise<void> {
+    const configuration: Record<string, string> = {};
+    
+    // Add sql_dialect to configuration if specified
+    if (this.config.sqlDialect) {
+      configuration['sql_dialect'] = this.config.sqlDialect;
+    }
+    
     const openReq = new ttypes.TSOpenSessionReq({
       client_protocol: ttypes.TSProtocolVersion.IOTDB_SERVICE_PROTOCOL_V3,
       username: this.config.username || "root",
       password: this.config.password || "root",
       zoneId: this.config.timezone || "UTC+8",
-      configuration: {},
+      configuration: configuration,
     });
 
     return new Promise((resolve, reject) => {

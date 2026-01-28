@@ -18,12 +18,12 @@
  */
 
 import { Session } from './Session';
-import { PoolConfig } from '../utils/Config';
+import { PoolConfig, SQL_DIALECT_TABLE } from '../utils/Config';
 import { BaseSessionPool } from './BaseSessionPool';
 
 /**
  * TableSessionPool provides connection pooling optimized for table model operations
- * Automatically configures sessions for table mode by executing USE DATABASE
+ * Automatically configures sessions for table mode by setting sql_dialect to 'table'
  */
 export class TableSessionPool extends BaseSessionPool {
   constructor(
@@ -32,6 +32,11 @@ export class TableSessionPool extends BaseSessionPool {
     config?: Partial<PoolConfig>
   ) {
     super(hostsOrConfig, port, config);
+    
+    // Default to table SQL dialect for TableSessionPool
+    if (!this.config.sqlDialect) {
+      this.config.sqlDialect = SQL_DIALECT_TABLE;
+    }
   }
 
   protected getPoolName(): string {
@@ -47,11 +52,6 @@ export class TableSessionPool extends BaseSessionPool {
     });
 
     await session.open();
-
-    // Set session to table model by executing a USE DATABASE command
-    if (this.config.database) {
-      await session.executeNonQueryStatement(`USE ${this.config.database}`);
-    }
 
     return session;
   }

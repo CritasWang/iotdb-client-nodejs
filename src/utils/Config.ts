@@ -17,6 +17,9 @@
  * under the License.
  */
 
+export const SQL_DIALECT_TREE = 'tree';
+export const SQL_DIALECT_TABLE = 'table';
+
 export interface EndPoint {
   host: string;
   port: number;
@@ -52,6 +55,7 @@ export interface Config {
   fetchSize?: number;
   enableSSL?: boolean;
   sslOptions?: SSLOptions;
+  sqlDialect?: string;
 }
 
 export interface SSLOptions {
