@@ -221,61 +221,68 @@ describe("All Data Types E2E Tests", () => {
     console.log("Inserted data with all data types");
 
     // Query the data back
-    const result = await session.executeQueryStatement(
+    const dataSet = await session.executeQueryStatement(
       "SELECT * FROM root.test.device1",
     );
 
-    expect(result).toBeDefined();
-    expect(result.rows).toBeDefined();
-    expect(result.rows.length).toBeGreaterThanOrEqual(3);
+    expect(dataSet).toBeDefined();
 
-    console.log(`Retrieved ${result.rows.length} rows`);
-    console.log("Sample row:", result.rows[0]);
+    // Collect all rows
+    const rows = [];
+    while (await dataSet.hasNext()) {
+      rows.push(dataSet.next());
+    }
+    await dataSet.close();
+
+    expect(rows.length).toBeGreaterThanOrEqual(3);
+
+    console.log(`Retrieved ${rows.length} rows`);
+    console.log("Sample row:", rows[0]);
 
     // Verify data types
-    const firstRow = result.rows[0];
-    expect(firstRow.length).toBe(11); // timestamp + 10 columns
+    const firstRow = rows[0];
+    expect(firstRow.getFields().length).toBe(10); // 10 data columns
 
     // Check timestamp
-    expect(typeof firstRow[0]).toBe("bigint");
+    expect(typeof firstRow.getTimestamp()).toBe("number");
 
     // Check BOOLEAN
-    expect(typeof firstRow[1]).toBe("boolean");
-    expect(firstRow[1]).toBe(true);
+    expect(typeof firstRow.getValueByIndex(0)).toBe("boolean");
+    expect(firstRow.getValueByIndex(0)).toBe(true);
 
     // Check INT32
-    expect(typeof firstRow[2]).toBe("number");
-    expect(firstRow[2]).toBe(100);
+    expect(typeof firstRow.getValueByIndex(1)).toBe("number");
+    expect(firstRow.getValueByIndex(1)).toBe(100);
 
     // Check INT64
-    expect(typeof firstRow[3]).toBe("bigint");
-    expect(firstRow[3]).toBe(1000n);
+    expect(typeof firstRow.getValueByIndex(2)).toBe("bigint");
+    expect(firstRow.getValueByIndex(2)).toBe(1000n);
 
     // Check FLOAT
-    expect(typeof firstRow[4]).toBe("number");
-    expect(firstRow[4]).toBeCloseTo(1.23, 2);
+    expect(typeof firstRow.getValueByIndex(3)).toBe("number");
+    expect(firstRow.getValueByIndex(3)).toBeCloseTo(1.23, 2);
 
     // Check DOUBLE
-    expect(typeof firstRow[5]).toBe("number");
-    expect(firstRow[5]).toBeCloseTo(4.56, 2);
+    expect(typeof firstRow.getValueByIndex(4)).toBe("number");
+    expect(firstRow.getValueByIndex(4)).toBeCloseTo(4.56, 2);
 
     // Check TEXT
-    expect(typeof firstRow[6]).toBe("string");
-    expect(firstRow[6]).toBe("hello");
+    expect(typeof firstRow.getValueByIndex(5)).toBe("string");
+    expect(firstRow.getValueByIndex(5)).toBe("hello");
 
     // Check TIMESTAMP
-    expect(firstRow[7]).toBeInstanceOf(Date);
+    expect(firstRow.getValueByIndex(6)).toBeInstanceOf(Date);
 
     // Check DATE
-    expect(firstRow[8]).toBeInstanceOf(Date);
+    expect(firstRow.getValueByIndex(7)).toBeInstanceOf(Date);
 
     // Check BLOB
-    expect(Buffer.isBuffer(firstRow[9])).toBe(true);
-    expect(firstRow[9]).toEqual(Buffer.from([0x01, 0x02, 0x03]));
+    expect(Buffer.isBuffer(firstRow.getValueByIndex(8))).toBe(true);
+    expect(firstRow.getValueByIndex(8)).toEqual(Buffer.from([0x01, 0x02, 0x03]));
 
     // Check STRING
-    expect(typeof firstRow[10]).toBe("string");
-    expect(firstRow[10]).toBe("str1");
+    expect(typeof firstRow.getValueByIndex(9)).toBe("string");
+    expect(firstRow.getValueByIndex(9)).toBe("str1");
   }, 60000);
 
   test("Should handle null values for all data types", async () => {
@@ -333,12 +340,18 @@ describe("All Data Types E2E Tests", () => {
     await session.insertTablet(tablet);
 
     // Query to verify
-    const result = await session.executeQueryStatement(
+    const dataSet = await session.executeQueryStatement(
       `SELECT * FROM root.test.device1 WHERE time = ${now}`,
     );
 
-    expect(result.rows.length).toBeGreaterThan(0);
-    console.log("Null handling test row:", result.rows[0]);
+    const rows = [];
+    while (await dataSet.hasNext()) {
+      rows.push(dataSet.next());
+    }
+    await dataSet.close();
+
+    expect(rows.length).toBeGreaterThan(0);
+    console.log("Null handling test row:", rows[0]);
   }, 60000);
 
   test("Should handle multiple rows with mixed data types", async () => {
@@ -403,20 +416,26 @@ describe("All Data Types E2E Tests", () => {
     console.log(`Inserted ${rowCount} rows with mixed data types`);
 
     // Query and verify
-    const result = await session.executeQueryStatement(
+    const dataSet = await session.executeQueryStatement(
       `SELECT * FROM root.test.device1 WHERE time >= ${baseTime} AND time < ${baseTime + rowCount * 1000}`,
     );
 
-    expect(result.rows.length).toBeGreaterThanOrEqual(rowCount);
-    console.log(`Retrieved ${result.rows.length} rows from mixed data query`);
+    const rows = [];
+    while (await dataSet.hasNext()) {
+      rows.push(dataSet.next());
+    }
+    await dataSet.close();
+
+    expect(rows.length).toBeGreaterThanOrEqual(rowCount);
+    console.log(`Retrieved ${rows.length} rows from mixed data query`);
 
     // Verify a few rows
-    for (let i = 0; i < Math.min(3, result.rows.length); i++) {
-      const row = result.rows[i];
+    for (let i = 0; i < Math.min(3, rows.length); i++) {
+      const row = rows[i];
       console.log(`Row ${i}:`, row);
 
       // Verify we have all columns
-      expect(row.length).toBe(11); // timestamp + 10 data columns
+      expect(row.getFields().length).toBe(10); // 10 data columns
     }
   }, 60000);
 
@@ -427,46 +446,66 @@ describe("All Data Types E2E Tests", () => {
     }
 
     // Query with COUNT - IoTDB requires separate queries for different aggregations
-    const countResult1 = await session.executeQueryStatement(
+    const countDataSet1 = await session.executeQueryStatement(
       "SELECT COUNT(int32_sensor) FROM root.test.device1",
     );
-    expect(countResult1.rows).toBeDefined();
-    expect(countResult1.rows.length).toBeGreaterThan(0);
-    console.log("COUNT(int32_sensor) result:", countResult1.rows[0]);
+    const countRows1 = [];
+    while (await countDataSet1.hasNext()) {
+      countRows1.push(countDataSet1.next());
+    }
+    await countDataSet1.close();
+    expect(countRows1.length).toBeGreaterThan(0);
+    console.log("COUNT(int32_sensor) result:", countRows1[0]);
 
-    const countResult2 = await session.executeQueryStatement(
+    const countDataSet2 = await session.executeQueryStatement(
       "SELECT COUNT(text_sensor) FROM root.test.device1",
     );
-    expect(countResult2.rows).toBeDefined();
-    expect(countResult2.rows.length).toBeGreaterThan(0);
-    console.log("COUNT(text_sensor) result:", countResult2.rows[0]);
+    const countRows2 = [];
+    while (await countDataSet2.hasNext()) {
+      countRows2.push(countDataSet2.next());
+    }
+    await countDataSet2.close();
+    expect(countRows2.length).toBeGreaterThan(0);
+    console.log("COUNT(text_sensor) result:", countRows2[0]);
 
     // Query with aggregation on numeric types - separate queries
-    const avgResult = await session.executeQueryStatement(
+    const avgDataSet = await session.executeQueryStatement(
       "SELECT AVG(float_sensor) FROM root.test.device1",
     );
-    expect(avgResult.rows).toBeDefined();
-    expect(avgResult.rows.length).toBeGreaterThan(0);
+    const avgRows = [];
+    while (await avgDataSet.hasNext()) {
+      avgRows.push(avgDataSet.next());
+    }
+    await avgDataSet.close();
+    expect(avgRows.length).toBeGreaterThan(0);
 
-    const maxResult = await session.executeQueryStatement(
+    const maxDataSet = await session.executeQueryStatement(
       "SELECT MAX(int32_sensor) FROM root.test.device1",
     );
-    expect(maxResult.rows).toBeDefined();
-    expect(maxResult.rows.length).toBeGreaterThan(0);
+    const maxRows = [];
+    while (await maxDataSet.hasNext()) {
+      maxRows.push(maxDataSet.next());
+    }
+    await maxDataSet.close();
+    expect(maxRows.length).toBeGreaterThan(0);
 
-    const minResult = await session.executeQueryStatement(
+    const minDataSet = await session.executeQueryStatement(
       "SELECT MIN(double_sensor) FROM root.test.device1",
     );
-    expect(minResult.rows).toBeDefined();
-    expect(minResult.rows.length).toBeGreaterThan(0);
+    const minRows = [];
+    while (await minDataSet.hasNext()) {
+      minRows.push(minDataSet.next());
+    }
+    await minDataSet.close();
+    expect(minRows.length).toBeGreaterThan(0);
 
     console.log(
       "Aggregation results - AVG:",
-      avgResult.rows[0],
+      avgRows[0],
       "MAX:",
-      maxResult.rows[0],
+      maxRows[0],
       "MIN:",
-      minResult.rows[0],
+      minRows[0],
     );
   }, 60000);
 });
