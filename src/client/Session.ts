@@ -20,6 +20,8 @@
 import { Connection } from '../connection/Connection';
 import { Config, DEFAULT_CONFIG, parseNodeUrls, EndPoint } from '../utils/Config';
 import { logger } from '../utils/Logger';
+import { SessionDataSet } from './SessionDataSet';
+import { RowRecord } from './RowRecord';
 
 const ttypes = require('../thrift/generated/client_types');
 
@@ -29,6 +31,8 @@ export interface QueryResult {
   rows: any[][];
   queryId?: number;
 }
+
+export { SessionDataSet, RowRecord };
 
 export interface Tablet {
   deviceId: string;
@@ -80,6 +84,92 @@ export class Session {
     await this.connection.close();
   }
 
+  /**
+   * Execute a query and return a SessionDataSet for iterating through results.
+   * This is the recommended method for querying data as it supports lazy loading
+   * and proper resource management.
+   * 
+   * @param sql SQL query statement
+   * @param timeoutMs Query timeout in milliseconds (default: 60000)
+   * @returns SessionDataSet for iterating through query results
+   * 
+   * @example
+   * ```typescript
+   * const dataSet = await session.executeQuery('SELECT * FROM root.test');
+   * while (await dataSet.hasNext()) {
+   *   const row = dataSet.next();
+   *   console.log(row.getTimestamp(), row.getFields());
+   * }
+   * await dataSet.close();
+   * ```
+   */
+  async executeQuery(sql: string, timeoutMs: number = 60000): Promise<SessionDataSet> {
+    logger.debug(`Executing query: ${sql}`);
+
+    const client = this.connection.getClient();
+    const sessionId = this.connection.getSessionId();
+    const statementId = this.connection.getStatementId();
+
+    const req = new ttypes.TSExecuteStatementReq({
+      sessionId: sessionId,
+      statement: sql,
+      statementId: statementId,
+      fetchSize: this.config.fetchSize || 1024,
+      timeout: timeoutMs,
+      enableRedirectQuery: true,
+      jdbcQuery: true,
+    });
+
+    return new Promise((resolve, reject) => {
+      client.executeQueryStatementV2(req, async (err: Error, response: any) => {
+        if (err) {
+          reject(err);
+          return;
+        }
+
+        if (response.status.code !== 200) {
+          reject(new Error(response.status.message || 'Query failed'));
+          return;
+        }
+
+        try {
+          // Parse initial batch of rows
+          const initialRows = await this.parseDataSet(
+            response.queryDataSet,
+            response.columns?.length || 0,
+            response.dataTypeList || []
+          );
+
+          // Create SessionDataSet
+          const dataSet = new SessionDataSet(
+            this,
+            response.queryId,
+            statementId,
+            sql,
+            response.columns || [],
+            response.dataTypeList || [],
+            initialRows,
+            response.moreData || false,
+            this.config.fetchSize || 1024,
+            sessionId
+          );
+
+          resolve(dataSet);
+        } catch (parseError) {
+          reject(parseError);
+        }
+      });
+    });
+  }
+
+  /**
+   * Execute a query and return all results at once.
+   * @deprecated Use executeQuery() instead for better memory efficiency with large result sets
+   * 
+   * @param sql SQL query statement
+   * @param timeoutMs Query timeout in milliseconds (default: 60000)
+   * @returns QueryResult containing all rows
+   */
   async executeQueryStatement(sql: string, timeoutMs: number = 60000): Promise<QueryResult> {
     logger.debug(`Executing query: ${sql}`);
 
