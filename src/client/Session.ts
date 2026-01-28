@@ -355,7 +355,7 @@ export class Session {
     const req = new ttypes.TSFetchResultsReq({
       sessionId: sessionId,
       statement: '',
-      fetchSize: this.config.fetchSize,
+      fetchSize: this.config.fetchSize || 1024,
       queryId: queryId,
       isAlign: true,
     });
