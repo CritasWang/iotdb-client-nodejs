@@ -18,21 +18,21 @@
  */
 
 import * as thrift from "thrift";
-import { Config } from "../utils/Config";
+import { InternalConfig } from "../utils/Config";
 import { logger } from "../utils/Logger";
 
 const IClientRPCService = require("../thrift/generated/IClientRPCService");
 const ttypes = require("../thrift/generated/client_types");
 
 export class Connection {
-  private config: Config;
+  private config: InternalConfig;
   private connection: thrift.Connection | null = null;
   private client: any = null;
   private sessionId: number | null = null;
   private statementId: number | null = null;
   private isConnected: boolean = false;
 
-  constructor(config: Config) {
+  constructor(config: InternalConfig) {
     this.config = config;
   }
 

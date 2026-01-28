@@ -26,6 +26,13 @@ export interface EndPoint {
 }
 
 /**
+ * Internal config used by Connection class (includes internal-only fields)
+ */
+export interface InternalConfig extends Config {
+  sqlDialect?: string;
+}
+
+/**
  * Parse nodeUrls from string array format (e.g., ["host1:6667", "host2:6668"])
  * to EndPoint array format
  */
@@ -55,7 +62,6 @@ export interface Config {
   fetchSize?: number;
   enableSSL?: boolean;
   sslOptions?: SSLOptions;
-  sqlDialect?: string;
 }
 
 export interface SSLOptions {

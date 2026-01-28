@@ -18,7 +18,7 @@
  */
 
 import { Session } from './Session';
-import { PoolConfig, SQL_DIALECT_TABLE } from '../utils/Config';
+import { PoolConfig, SQL_DIALECT_TABLE, InternalConfig } from '../utils/Config';
 import { BaseSessionPool } from './BaseSessionPool';
 
 /**
@@ -32,11 +32,6 @@ export class TableSessionPool extends BaseSessionPool {
     config?: Partial<PoolConfig>
   ) {
     super(hostsOrConfig, port, config);
-    
-    // Default to table SQL dialect for TableSessionPool
-    if (!this.config.sqlDialect) {
-      this.config.sqlDialect = SQL_DIALECT_TABLE;
-    }
   }
 
   protected getPoolName(): string {
@@ -45,13 +40,22 @@ export class TableSessionPool extends BaseSessionPool {
 
   protected async createPoolSession(): Promise<Session> {
     const endPoint = this.getNextEndPoint();
-    const session = new Session({
+    
+    // Create internal config with sql_dialect set to 'table'
+    const internalConfig: InternalConfig = {
       ...this.config,
       host: endPoint.host,
       port: endPoint.port,
-    });
-
+      sqlDialect: SQL_DIALECT_TABLE,
+    };
+    
+    const session = new Session(internalConfig);
     await session.open();
+
+    // Set session to table model by executing a USE DATABASE command if database is specified
+    if (this.config.database) {
+      await session.executeNonQueryStatement(`USE ${this.config.database}`);
+    }
 
     return session;
   }
