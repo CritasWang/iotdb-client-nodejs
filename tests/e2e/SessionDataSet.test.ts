@@ -82,8 +82,11 @@ describe("SessionDataSet E2E Tests", () => {
     );
 
     expect(dataSet).toBeDefined();
-    // IoTDB returns fully qualified names, but we can access by short names
-    expect(dataSet.getShortColumnNames()).toEqual(["s1", "s2"]);
+    // IoTDB returns fully qualified column names
+    expect(dataSet.getColumnNames()).toEqual([
+      "root.test.d1.s1",
+      "root.test.d1.s2",
+    ]);
 
     let rowCount = 0;
     const rows: any[] = [];
@@ -93,8 +96,8 @@ describe("SessionDataSet E2E Tests", () => {
       rowCount++;
       rows.push({
         timestamp: row.getTimestamp(),
-        s1: row.getInt("s1"),
-        s2: row.getString("s2"),
+        s1: row.getInt("root.test.d1.s1"),
+        s2: row.getString("root.test.d1.s2"),
       });
     }
 
@@ -143,7 +146,7 @@ describe("SessionDataSet E2E Tests", () => {
     let rowCount = 0;
     while (await dataSet.hasNext()) {
       const row = dataSet.next();
-      expect(row.getInt("value")).toBe(rowCount);
+      expect(row.getInt("root.test.large.d1.value")).toBe(rowCount);
       rowCount++;
     }
 
@@ -178,17 +181,17 @@ describe("SessionDataSet E2E Tests", () => {
     expect(await dataSet.hasNext()).toBe(true);
     const row = dataSet.next();
 
-    // Access by column name
-    expect(row.getFloat("temperature")).toBeCloseTo(23.5, 1);
-    expect(row.getDouble("humidity")).toBeCloseTo(65.2, 1);
+    // Access by column name (fully qualified)
+    expect(row.getFloat("root.test.column.d1.temperature")).toBeCloseTo(23.5, 1);
+    expect(row.getDouble("root.test.column.d1.humidity")).toBeCloseTo(65.2, 1);
 
     // Access by index
     expect(row.getFloatByIndex(0)).toBeCloseTo(23.5, 1);
     expect(row.getDoubleByIndex(1)).toBeCloseTo(65.2, 1);
 
-    // Find column index
-    expect(dataSet.findColumn("temperature")).toBe(0);
-    expect(dataSet.findColumn("humidity")).toBe(1);
+    // Find column index (using fully qualified names)
+    expect(dataSet.findColumn("root.test.column.d1.temperature")).toBe(0);
+    expect(dataSet.findColumn("root.test.column.d1.humidity")).toBe(1);
 
     await dataSet.close();
   }, 60000);
@@ -219,10 +222,10 @@ describe("SessionDataSet E2E Tests", () => {
     expect(await dataSet.hasNext()).toBe(true);
     const row = dataSet.next();
 
-    expect(row.isNull("s1")).toBe(false);
-    expect(row.isNull("s2")).toBe(true);
+    expect(row.isNull("root.test.null_test.d1.s1")).toBe(false);
+    expect(row.isNull("root.test.null_test.d1.s2")).toBe(true);
 
-    expect(row.getInt("s1")).toBe(100);
+    expect(row.getInt("root.test.null_test.d1.s1")).toBe(100);
 
     await dataSet.close();
   }, 60000);

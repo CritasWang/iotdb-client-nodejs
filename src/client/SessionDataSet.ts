@@ -102,15 +102,9 @@ export class SessionDataSet {
       for (let i = 0; i < columnNames.length; i++) {
         const tsBlockColumnIndex = columnIndex2TsBlockColumnIndexList[i];
         const fullName = columnNames[i];
-        // Register full column name
         this.columnNameIndexMap.set(fullName, tsBlockColumnIndex);
-        // Also register short name (last segment after last dot) for convenience
-        const shortName = this.extractShortColumnName(fullName);
-        if (shortName !== fullName) {
-          this.columnNameIndexMap.set(shortName, tsBlockColumnIndex);
-        }
         logger.debug(
-          `Column mapping: ${fullName} (short: ${shortName}) -> TsBlock index ${tsBlockColumnIndex}`,
+          `Column mapping: ${fullName} -> TsBlock index ${tsBlockColumnIndex}`,
         );
       }
     } else {
@@ -124,14 +118,7 @@ export class SessionDataSet {
       );
       this.columnNameIndexMap = new Map();
       for (let i = 0; i < columnNames.length; i++) {
-        const fullName = columnNames[i];
-        // Register full column name
-        this.columnNameIndexMap.set(fullName, i);
-        // Also register short name (last segment after last dot) for convenience
-        const shortName = this.extractShortColumnName(fullName);
-        if (shortName !== fullName) {
-          this.columnNameIndexMap.set(shortName, i);
-        }
+        this.columnNameIndexMap.set(columnNames[i], i);
       }
     }
   }
@@ -145,27 +132,10 @@ export class SessionDataSet {
   }
 
   /**
-   * Extract short column name from fully qualified name.
-   * For example: "root.test.d1.s1" -> "s1"
-   */
-  private extractShortColumnName(fullName: string): string {
-    const parts = fullName.split(".");
-    return parts[parts.length - 1];
-  }
-
-  /**
    * Get column names
    */
   getColumnNames(): string[] {
     return [...this.columnNames];
-  }
-
-  /**
-   * Get short column names (last segment after last dot).
-   * For example: ["root.test.d1.s1", "root.test.d1.s2"] -> ["s1", "s2"]
-   */
-  getShortColumnNames(): string[] {
-    return this.columnNames.map((name) => this.extractShortColumnName(name));
   }
 
   /**
