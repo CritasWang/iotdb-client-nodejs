@@ -69,7 +69,7 @@ describe("Large Query E2E Tests", () => {
     try {
       await session.executeNonQueryStatement("CREATE DATABASE root.test");
     } catch (error: any) {
-      if (!error.message?.includes("already exists")) {
+      if (!error.message?.includes("already")) {
         throw error;
       }
     }

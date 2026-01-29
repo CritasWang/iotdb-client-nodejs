@@ -525,6 +525,11 @@ export class Session {
    * +-------------+---------------+---------+------------+-----------+----------+
    * | int32       | list[byte]    | int32   | list[byte] |  bytes    | bytes    |
    * +-------------+---------------+---------+------------+-----------+----------+
+   *
+   * IMPORTANT: TsBlock ALWAYS contains time column encoding and time column data,
+   * regardless of the ignoreTimeStamp setting. The ignoreTimeStamp flag only
+   * affects whether the timestamp is included in the returned row data, not the
+   * TsBlock binary format. This matches the behavior of iotdb-client-csharp.
    */
   private parseTsBlock(
     buffer: Buffer,
@@ -568,21 +573,15 @@ export class Session {
     logger.debug(`TsBlock: valueEncodings=${JSON.stringify(valueEncodings)}`);
 
     // Read time column using decoder
-    let timeColumn: Column | null = null;
-    if (!ignoreTimeStamp) {
-      const timeDecoder = BaseColumnDecoder.getDecoder(timeEncoding);
-      const { column, bytesRead } = timeDecoder.readColumn(
-        buffer,
-        offset,
-        8 /* TIMESTAMP */,
-        positionCount,
-      );
-      timeColumn = column;
-      offset += bytesRead;
-      logger.debug(
-        `TsBlock: read time column, ${column.values.length} timestamps`,
-      );
-    }
+    // IMPORTANT: TsBlock ALWAYS contains time column data, even when ignoreTimeStamp=true
+    // This matches the behavior of iotdb-client-csharp
+    const timeDecoder = BaseColumnDecoder.getDecoder(timeEncoding);
+    const { column: timeColumn, bytesRead: timeColumnBytesRead } =
+      timeDecoder.readColumn(buffer, offset, 8 /* TIMESTAMP */, positionCount);
+    offset += timeColumnBytesRead;
+    logger.debug(
+      `TsBlock: read time column, ${timeColumn.values.length} timestamps, ignoreTimeStamp=${ignoreTimeStamp}`,
+    );
 
     // Read value columns using decoders
     const valueColumns: Column[] = [];
@@ -610,8 +609,13 @@ export class Session {
     for (let rowIndex = 0; rowIndex < positionCount; rowIndex++) {
       const row: any[] = [];
 
-      // Add timestamp if present
-      if (timeColumn && rowIndex < timeColumn.values.length) {
+      // Add timestamp only if not ignoring timestamp
+      // Note: timeColumn is always present in TsBlock, but we only include it in results when needed
+      if (
+        !ignoreTimeStamp &&
+        timeColumn &&
+        rowIndex < timeColumn.values.length
+      ) {
         row.push(timeColumn.values[rowIndex]);
       }
 
