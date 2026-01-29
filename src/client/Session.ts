@@ -826,91 +826,59 @@ export class Session {
           break;
         }
         case 1: {
-          // INT32
-          // Create aligned buffer if necessary (byteOffset must be multiple of 4)
-          const alignedBuffer =
-            buffer.byteOffset % 4 === 0 ? buffer : Buffer.from(buffer);
-          const int32Array = new Int32Array(
-            alignedBuffer.buffer,
-            alignedBuffer.byteOffset,
-            Math.floor(alignedBuffer.length / 4),
-          );
-          for (let i = 0; i < rowCount && i < int32Array.length; i++) {
+          // INT32 - TSQueryDataSet uses BIG ENDIAN
+          for (let i = 0; i < rowCount; i++) {
             if (this.isNull(bitmap, i)) {
               values.push(null);
             } else {
-              values.push(int32Array[i]);
+              values.push(buffer.readInt32BE(i * 4));
             }
           }
           break;
         }
         case 2: {
-          // INT64
-          // Create aligned buffer if necessary (byteOffset must be multiple of 8)
-          const alignedBuffer =
-            buffer.byteOffset % 8 === 0 ? buffer : Buffer.from(buffer);
-          const bigInt64Array = new BigInt64Array(
-            alignedBuffer.buffer,
-            alignedBuffer.byteOffset,
-            Math.floor(alignedBuffer.length / 8),
-          );
-          for (let i = 0; i < rowCount && i < bigInt64Array.length; i++) {
+          // INT64 - TSQueryDataSet uses BIG ENDIAN
+          for (let i = 0; i < rowCount; i++) {
             if (this.isNull(bitmap, i)) {
               values.push(null);
             } else {
-              values.push(bigInt64Array[i]);
+              values.push(buffer.readBigInt64BE(i * 8));
             }
           }
           break;
         }
         case 3: {
-          // FLOAT
-          // Create aligned buffer if necessary (byteOffset must be multiple of 4)
-          const alignedBuffer =
-            buffer.byteOffset % 4 === 0 ? buffer : Buffer.from(buffer);
-          const float32Array = new Float32Array(
-            alignedBuffer.buffer,
-            alignedBuffer.byteOffset,
-            Math.floor(alignedBuffer.length / 4),
-          );
-          for (let i = 0; i < rowCount && i < float32Array.length; i++) {
+          // FLOAT - TSQueryDataSet uses BIG ENDIAN
+          for (let i = 0; i < rowCount; i++) {
             if (this.isNull(bitmap, i)) {
               values.push(null);
             } else {
-              values.push(float32Array[i]);
+              values.push(buffer.readFloatBE(i * 4));
             }
           }
           break;
         }
         case 4: {
-          // DOUBLE
-          // Create aligned buffer if necessary (byteOffset must be multiple of 8)
-          const alignedBuffer =
-            buffer.byteOffset % 8 === 0 ? buffer : Buffer.from(buffer);
-          const float64Array = new Float64Array(
-            alignedBuffer.buffer,
-            alignedBuffer.byteOffset,
-            Math.floor(alignedBuffer.length / 8),
-          );
-          for (let i = 0; i < rowCount && i < float64Array.length; i++) {
+          // DOUBLE - TSQueryDataSet uses BIG ENDIAN
+          for (let i = 0; i < rowCount; i++) {
             if (this.isNull(bitmap, i)) {
               values.push(null);
             } else {
-              values.push(float64Array[i]);
+              values.push(buffer.readDoubleBE(i * 8));
             }
           }
           break;
         }
         case 5: // TEXT
         case 11: {
-          // STRING (similar to TEXT)
+          // STRING (similar to TEXT) - TSQueryDataSet uses BIG ENDIAN for length
           let offset = 0;
           for (let i = 0; i < rowCount && offset < buffer.length; i++) {
             if (this.isNull(bitmap, i)) {
               values.push(null);
             } else {
               if (offset + 4 > buffer.length) break;
-              const strLength = buffer.readInt32LE(offset);
+              const strLength = buffer.readInt32BE(offset);
               offset += 4;
               if (offset + strLength > buffer.length) break;
               const str = buffer.toString("utf8", offset, offset + strLength);
@@ -921,21 +889,13 @@ export class Session {
           break;
         }
         case 8: {
-          // TIMESTAMP (stored as INT64 - milliseconds)
-          // Create aligned buffer if necessary (byteOffset must be multiple of 8)
-          const alignedBuffer =
-            buffer.byteOffset % 8 === 0 ? buffer : Buffer.from(buffer);
-          const bigInt64Array = new BigInt64Array(
-            alignedBuffer.buffer,
-            alignedBuffer.byteOffset,
-            Math.floor(alignedBuffer.length / 8),
-          );
-          for (let i = 0; i < rowCount && i < bigInt64Array.length; i++) {
+          // TIMESTAMP (stored as INT64 - milliseconds) - TSQueryDataSet uses BIG ENDIAN
+          for (let i = 0; i < rowCount; i++) {
             if (this.isNull(bitmap, i)) {
               values.push(null);
             } else {
               // Convert milliseconds to Date object
-              const timestamp = Number(bigInt64Array[i]);
+              const timestamp = Number(buffer.readBigInt64BE(i * 8));
               const date = new Date(timestamp);
               values.push(date);
             }
@@ -943,21 +903,13 @@ export class Session {
           break;
         }
         case 9: {
-          // DATE (stored as INT32 - days since epoch)
-          // Create aligned buffer if necessary (byteOffset must be multiple of 4)
-          const alignedBuffer =
-            buffer.byteOffset % 4 === 0 ? buffer : Buffer.from(buffer);
-          const int32Array = new Int32Array(
-            alignedBuffer.buffer,
-            alignedBuffer.byteOffset,
-            Math.floor(alignedBuffer.length / 4),
-          );
-          for (let i = 0; i < rowCount && i < int32Array.length; i++) {
+          // DATE (stored as INT32 - days since epoch) - TSQueryDataSet uses BIG ENDIAN
+          for (let i = 0; i < rowCount; i++) {
             if (this.isNull(bitmap, i)) {
               values.push(null);
             } else {
               // Convert days since epoch to Date object
-              const days = int32Array[i];
+              const days = buffer.readInt32BE(i * 4);
               const date = new Date(days * 24 * 60 * 60 * 1000);
               values.push(date);
             }
@@ -965,14 +917,14 @@ export class Session {
           break;
         }
         case 10: {
-          // BLOB
+          // BLOB - TSQueryDataSet uses BIG ENDIAN for length
           let offset = 0;
           for (let i = 0; i < rowCount && offset < buffer.length; i++) {
             if (this.isNull(bitmap, i)) {
               values.push(null);
             } else {
               if (offset + 4 > buffer.length) break;
-              const blobLength = buffer.readInt32LE(offset);
+              const blobLength = buffer.readInt32BE(offset);
               offset += 4;
               if (offset + blobLength > buffer.length) break;
               const blob = buffer.slice(offset, offset + blobLength);
