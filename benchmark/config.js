@@ -69,7 +69,8 @@ const DEFAULT_CONFIG = {
 
   // ===== Write Operation Settings =====
   BATCH_SIZE_PER_WRITE: parseInt(process.env.BATCH_SIZE_PER_WRITE || '100'),  // Rows per write batch
-  TOTAL_DATA_POINTS: parseInt(process.env.TOTAL_DATA_POINTS || '100000'),     // Total data points to generate
+  TOTAL_DATA_POINTS: parseInt(process.env.TOTAL_DATA_POINTS || '100000'),     // Total data points to generate (used if LOOP not set)
+  LOOP: process.env.LOOP ? parseInt(process.env.LOOP) : null,                 // Total execution loops (alternative to TOTAL_DATA_POINTS)
   
   // ===== Time Settings =====
   POINT_STEP: parseInt(process.env.POINT_STEP || '1000'),             // Time interval between points (ms)
@@ -87,6 +88,9 @@ const DEFAULT_CONFIG = {
   POOL_MIN_SIZE: parseInt(process.env.POOL_MIN_SIZE || '5'),          // Minimum pool size
   POOL_MAX_IDLE_TIME: parseInt(process.env.POOL_MAX_IDLE_TIME || '60000'),  // Max idle time (ms)
   POOL_WAIT_TIMEOUT: parseInt(process.env.POOL_WAIT_TIMEOUT || '60000'),    // Wait timeout (ms)
+  
+  // ===== Device-Session Binding =====
+  ENABLE_DEVICE_SESSION_BINDING: process.env.ENABLE_DEVICE_SESSION_BINDING === 'true',  // Bind devices to sessions (requires DEVICE_NUMBER % POOL_MAX_SIZE == 0)
 
   // ===== Model-Specific Settings =====
   // Tree model settings
@@ -128,8 +132,14 @@ function validateConfig(config) {
   if (config.BATCH_SIZE_PER_WRITE <= 0) {
     errors.push('BATCH_SIZE_PER_WRITE must be positive');
   }
-  if (config.TOTAL_DATA_POINTS <= 0) {
-    errors.push('TOTAL_DATA_POINTS must be positive');
+  
+  // Validate LOOP or TOTAL_DATA_POINTS
+  if (config.LOOP !== null) {
+    if (config.LOOP <= 0) {
+      errors.push('LOOP must be positive');
+    }
+  } else if (config.TOTAL_DATA_POINTS <= 0) {
+    errors.push('TOTAL_DATA_POINTS must be positive when LOOP is not set');
   }
 
   // Validate data type proportion
@@ -150,6 +160,16 @@ function validateConfig(config) {
   // Validate pool settings
   if (config.POOL_MIN_SIZE > config.POOL_MAX_SIZE) {
     errors.push('POOL_MIN_SIZE cannot be greater than POOL_MAX_SIZE');
+  }
+  
+  // Validate device-session binding
+  if (config.ENABLE_DEVICE_SESSION_BINDING) {
+    if (config.DEVICE_NUMBER % config.POOL_MAX_SIZE !== 0) {
+      errors.push(
+        `ENABLE_DEVICE_SESSION_BINDING requires DEVICE_NUMBER (${config.DEVICE_NUMBER}) ` +
+        `to be a multiple of POOL_MAX_SIZE (${config.POOL_MAX_SIZE})`
+      );
+    }
   }
 
   return {
@@ -195,7 +215,13 @@ function printConfig(config) {
   console.log(`  Concurrent Clients:   ${config.CLIENT_NUMBER}`);
   console.log(`  Device Count:         ${config.DEVICE_NUMBER}`);
   console.log(`  Sensors per Device:   ${config.SENSOR_NUMBER}`);
-  console.log(`  Total Data Points:    ${config.TOTAL_DATA_POINTS}`);
+  if (config.LOOP !== null) {
+    console.log(`  Execution Loops:      ${config.LOOP}`);
+    const totalPoints = config.DEVICE_NUMBER * config.BATCH_SIZE_PER_WRITE * config.SENSOR_NUMBER * config.LOOP;
+    console.log(`  Total Data Points:    ${totalPoints.toLocaleString()} (calculated)`);
+  } else {
+    console.log(`  Total Data Points:    ${config.TOTAL_DATA_POINTS}`);
+  }
   console.log(`  Batch Size:           ${config.BATCH_SIZE_PER_WRITE}`);
 
   console.log('\n[Data Type Distribution]');
@@ -218,6 +244,7 @@ function printConfig(config) {
   console.log('\n[Pool Configuration]');
   console.log(`  Pool Max Size:        ${config.POOL_MAX_SIZE}`);
   console.log(`  Pool Min Size:        ${config.POOL_MIN_SIZE}`);
+  console.log(`  Device-Session Binding: ${config.ENABLE_DEVICE_SESSION_BINDING ? 'Enabled' : 'Disabled'}`);
 
   console.log('\n[Test Execution]');
   console.log(`  Warmup Rounds:        ${config.WARMUP_ROUNDS}`);

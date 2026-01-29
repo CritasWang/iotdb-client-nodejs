@@ -75,22 +75,42 @@ function createSessionPool(config) {
 }
 
 /**
- * Generate workload for tree model
+ * Generate workload for tree model (loop-based)
  * @param {Object} testData - Test data structure
+ * @param {Object} config - Configuration object
  * @returns {Array} Workload array
  */
-function generateWorkload(testData) {
+function generateWorkload(testData, config) {
   const workload = [];
   
-  for (const device of testData.devices) {
-    for (const batch of device.batches) {
-      workload.push({
-        deviceId: device.deviceId,
-        measurements: device.measurements,
-        dataTypes: device.dataTypes,
-        timestamps: batch.timestamps,
-        values: batch.values,
-      });
+  if (config.LOOP !== null) {
+    // Loop-based execution: each loop writes one batch for all devices
+    for (let loopIdx = 0; loopIdx < config.LOOP; loopIdx++) {
+      for (const device of testData.devices) {
+        // Each device has one batch in LOOP mode
+        const batch = device.batches[0];
+        workload.push({
+          deviceId: device.deviceId,
+          measurements: device.measurements,
+          dataTypes: device.dataTypes,
+          timestamps: batch.timestamps,
+          values: batch.values,
+          loopIndex: loopIdx,
+        });
+      }
+    }
+  } else {
+    // Legacy mode: all batches for all devices
+    for (const device of testData.devices) {
+      for (const batch of device.batches) {
+        workload.push({
+          deviceId: device.deviceId,
+          measurements: device.measurements,
+          dataTypes: device.dataTypes,
+          timestamps: batch.timestamps,
+          values: batch.values,
+        });
+      }
     }
   }
   
@@ -101,20 +121,28 @@ function generateWorkload(testData) {
  * Execute write operation for tree model
  * @param {SessionPool} pool - Session pool
  * @param {Object} work - Work item
+ * @param {Object} session - Optional bound session for device-session binding
  * @returns {number} Number of data points written
  */
-async function executeWrite(pool, work) {
+async function executeWrite(pool, work, session = null) {
   // Update timestamps to current time
   const now = Date.now();
   const updatedTimestamps = work.timestamps.map((offset) => now + offset);
   
-  await pool.insertTablet({
+  const tablet = {
     deviceId: work.deviceId,
     measurements: work.measurements,
     dataTypes: work.dataTypes,
     timestamps: updatedTimestamps,
     values: work.values,
-  });
+  };
+  
+  // Use bound session if provided, otherwise use pool
+  if (session) {
+    await session.insertTablet(tablet);
+  } else {
+    await pool.insertTablet(tablet);
+  }
   
   // Return number of data points written
   return work.timestamps.length * work.measurements.length;

@@ -133,11 +133,21 @@ function generateTreeModelData(config) {
     STORAGE_GROUP_PREFIX,
     DEVICE_PREFIX,
     SENSOR_PREFIX,
+    LOOP,
   } = config;
 
   const devices = [];
-  const pointsPerDevice = Math.floor(TOTAL_DATA_POINTS / DEVICE_NUMBER);
-  const batchCount = Math.ceil(pointsPerDevice / BATCH_SIZE_PER_WRITE);
+  
+  // Calculate batches based on LOOP or TOTAL_DATA_POINTS
+  let batchCount;
+  if (LOOP !== null) {
+    // When using LOOP mode, we generate one batch per device (used LOOP times)
+    batchCount = 1;
+  } else {
+    // Legacy mode: calculate based on total data points
+    const pointsPerDevice = Math.floor(TOTAL_DATA_POINTS / DEVICE_NUMBER);
+    batchCount = Math.ceil(pointsPerDevice / BATCH_SIZE_PER_WRITE);
+  }
 
   // Distribute sensor types
   const sensorTypes = distributeSensorTypes(SENSOR_NUMBER, INSERT_DATATYPE_PROPORTION);
@@ -156,9 +166,9 @@ function generateTreeModelData(config) {
     // Generate data batches
     const batches = [];
     for (let batchIdx = 0; batchIdx < batchCount; batchIdx++) {
-      const batchSize = Math.min(
+      const batchSize = LOOP !== null ? BATCH_SIZE_PER_WRITE : Math.min(
         BATCH_SIZE_PER_WRITE,
-        pointsPerDevice - batchIdx * BATCH_SIZE_PER_WRITE
+        Math.floor(TOTAL_DATA_POINTS / DEVICE_NUMBER) - batchIdx * BATCH_SIZE_PER_WRITE
       );
 
       const timestamps = [];
@@ -203,6 +213,7 @@ function generateTreeModelData(config) {
       TOTAL_DATA_POINTS,
       BATCH_SIZE_PER_WRITE,
       POINT_STEP,
+      LOOP,
     },
     devices,
   };
@@ -225,10 +236,19 @@ function generateTableModelData(config) {
     INSERT_DATATYPE_PROPORTION,
     DATABASE_NAME,
     TABLE_NAME,
+    LOOP,
   } = config;
 
-  const pointsPerDevice = Math.floor(TOTAL_DATA_POINTS / DEVICE_NUMBER);
-  const batchCount = Math.ceil(pointsPerDevice / BATCH_SIZE_PER_WRITE);
+  // Calculate batches based on LOOP or TOTAL_DATA_POINTS
+  let batchCount;
+  if (LOOP !== null) {
+    // When using LOOP mode, we generate one batch (used LOOP times)
+    batchCount = 1;
+  } else {
+    // Legacy mode: calculate based on total data points
+    const pointsPerDevice = Math.floor(TOTAL_DATA_POINTS / DEVICE_NUMBER);
+    batchCount = Math.ceil(pointsPerDevice / BATCH_SIZE_PER_WRITE);
+  }
 
   // Distribute sensor types
   const sensorTypes = distributeSensorTypes(SENSOR_NUMBER, INSERT_DATATYPE_PROPORTION);
@@ -245,9 +265,9 @@ function generateTableModelData(config) {
   // Generate data batches
   const batches = [];
   for (let batchIdx = 0; batchIdx < batchCount; batchIdx++) {
-    const batchSize = Math.min(
+    const batchSize = LOOP !== null ? BATCH_SIZE_PER_WRITE : Math.min(
       BATCH_SIZE_PER_WRITE,
-      pointsPerDevice - batchIdx * BATCH_SIZE_PER_WRITE
+      Math.floor(TOTAL_DATA_POINTS / DEVICE_NUMBER) - batchIdx * BATCH_SIZE_PER_WRITE
     );
 
     const rows = [];
@@ -287,6 +307,7 @@ function generateTableModelData(config) {
       TOTAL_DATA_POINTS,
       BATCH_SIZE_PER_WRITE,
       POINT_STEP,
+      LOOP,
     },
     schema: {
       columns,

@@ -233,6 +233,66 @@ class ProgressReporter {
 }
 
 /**
+ * Execute write operations concurrently with device-session binding
+ * @param {Object} pool - IoTDB session pool
+ * @param {Array} workload - Array of work items (should be ordered by device)
+ * @param {number} poolSize - Session pool size
+ * @param {MetricsCollector} metrics - Metrics collector
+ * @param {Function} executor - Async function to execute each work item (pool, work, session)
+ */
+async function executeConcurrentWithBinding(pool, workload, poolSize, metrics, executor) {
+  // Get sessions from pool and bind to devices
+  const sessions = [];
+  for (let i = 0; i < poolSize; i++) {
+    sessions.push(await pool.getSession());
+  }
+  
+  console.log(`[Device-Session Binding] Bound ${sessions.length} sessions to devices`);
+  
+  try {
+    const workers = [];
+
+    // Each worker handles workload items for devices bound to its session
+    // Workload is pre-ordered, so we can partition it evenly
+    const workPerSession = Math.ceil(workload.length / poolSize);
+    
+    const worker = async (sessionIdx) => {
+      const session = sessions[sessionIdx];
+      const startIdx = sessionIdx * workPerSession;
+      const endIdx = Math.min(startIdx + workPerSession, workload.length);
+      
+      for (let i = startIdx; i < endIdx; i++) {
+        const work = workload[i];
+        const startTime = performance.now();
+        
+        try {
+          const dataPoints = await executor(pool, work, session);
+          const latency = performance.now() - startTime;
+          metrics.recordOperation(latency, dataPoints, true);
+        } catch (error) {
+          const latency = performance.now() - startTime;
+          metrics.recordOperation(latency, 0, false, error);
+        }
+      }
+    };
+
+    // Start workers, one per session
+    for (let i = 0; i < poolSize; i++) {
+      workers.push(worker(i));
+    }
+
+    // Wait for all workers to complete
+    await Promise.all(workers);
+  } finally {
+    // Release all sessions back to pool
+    for (const session of sessions) {
+      pool.releaseSession(session);
+    }
+    console.log(`[Device-Session Binding] Released ${sessions.length} sessions`);
+  }
+}
+
+/**
  * Execute write operations concurrently
  * @param {Object} pool - IoTDB session pool
  * @param {Array} workload - Array of work items
@@ -292,7 +352,7 @@ async function runBenchmark(pool, testData, config, executor, workloadGenerator)
 
   // Generate workload
   console.log('\nGenerating workload...');
-  const workload = workloadGenerator(testData);
+  const workload = workloadGenerator(testData, config);
   console.log(`Workload generated: ${workload.length} operations`);
 
   // Warmup phase
@@ -316,19 +376,33 @@ async function runBenchmark(pool, testData, config, executor, workloadGenerator)
   }
 
   // Main test phase
-  console.log(`\n[Test Phase] Running benchmark with ${config.CLIENT_NUMBER} concurrent clients...`);
+  if (config.ENABLE_DEVICE_SESSION_BINDING) {
+    console.log(`\n[Test Phase] Running benchmark with device-session binding (${config.POOL_MAX_SIZE} sessions)...`);
+  } else {
+    console.log(`\n[Test Phase] Running benchmark with ${config.CLIENT_NUMBER} concurrent clients...`);
+  }
   
   metrics.start();
   reporter.start();
   
   try {
-    await executeConcurrent(
-      pool,
-      workload,
-      config.CLIENT_NUMBER,
-      metrics,
-      executor
-    );
+    if (config.ENABLE_DEVICE_SESSION_BINDING) {
+      await executeConcurrentWithBinding(
+        pool,
+        workload,
+        config.POOL_MAX_SIZE,
+        metrics,
+        executor
+      );
+    } else {
+      await executeConcurrent(
+        pool,
+        workload,
+        config.CLIENT_NUMBER,
+        metrics,
+        executor
+      );
+    }
   } finally {
     reporter.stop();
     metrics.end();
@@ -344,5 +418,6 @@ module.exports = {
   MetricsCollector,
   ProgressReporter,
   executeConcurrent,
+  executeConcurrentWithBinding,
   runBenchmark,
 };

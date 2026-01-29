@@ -77,19 +77,35 @@ function createTableSessionPool(config) {
 }
 
 /**
- * Generate workload for table model
+ * Generate workload for table model (loop-based)
  * @param {Object} testData - Test data structure
+ * @param {Object} config - Configuration object
  * @returns {Array} Workload array
  */
-function generateWorkload(testData) {
+function generateWorkload(testData, config) {
   const workload = [];
   
-  for (const batch of testData.batches) {
-    workload.push({
-      columns: testData.schema.columns,
-      rows: batch.rows,
-      tableName: testData.config.TABLE_NAME,
-    });
+  if (config.LOOP !== null) {
+    // Loop-based execution: repeat the batch LOOP times
+    for (let loopIdx = 0; loopIdx < config.LOOP; loopIdx++) {
+      for (const batch of testData.batches) {
+        workload.push({
+          columns: testData.schema.columns,
+          rows: batch.rows,
+          tableName: testData.config.TABLE_NAME,
+          loopIndex: loopIdx,
+        });
+      }
+    }
+  } else {
+    // Legacy mode: all batches
+    for (const batch of testData.batches) {
+      workload.push({
+        columns: testData.schema.columns,
+        rows: batch.rows,
+        tableName: testData.config.TABLE_NAME,
+      });
+    }
   }
   
   return workload;

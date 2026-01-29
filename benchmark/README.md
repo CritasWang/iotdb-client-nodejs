@@ -96,7 +96,10 @@ All benchmarks support configuration through environment variables. Default valu
 | `DEVICE_NUMBER` | `100` | Number of devices to simulate |
 | `SENSOR_NUMBER` | `10` | Number of sensors per device |
 | `BATCH_SIZE_PER_WRITE` | `100` | Data rows per write operation |
-| `TOTAL_DATA_POINTS` | `100000` | Total data points to generate |
+| `LOOP` | - | Total execution loops (alternative to TOTAL_DATA_POINTS) |
+| `TOTAL_DATA_POINTS` | `100000` | Total data points (used when LOOP not set) |
+
+**Note on LOOP mode**: When `LOOP` is set, total data points = DEVICE_NUMBER × BATCH_SIZE × SENSOR_NUMBER × LOOP. Each loop writes one complete batch for all devices (one tablet per device).
 
 ### Data Generation Settings
 
@@ -137,10 +140,40 @@ Default distribution:
 | `POOL_MIN_SIZE` | `5` | Minimum connections in pool |
 | `POOL_MAX_IDLE_TIME` | `60000` | Maximum idle time (ms) |
 | `POOL_WAIT_TIMEOUT` | `60000` | Wait timeout for connection (ms) |
+| `ENABLE_DEVICE_SESSION_BINDING` | `false` | Bind devices to sessions (requires DEVICE_NUMBER % POOL_MAX_SIZE == 0) |
+
+**Device-Session Binding**: When enabled, each session is bound to a specific set of devices, avoiding connection redirects and improving performance. Only enable this when DEVICE_NUMBER is evenly divisible by POOL_MAX_SIZE.
 
 ## Usage Examples
 
-### Basic Test with Moderate Load
+### Loop-Based Execution (Recommended)
+
+```bash
+# Execute 1000 loops, each writing one batch for all devices
+LOOP=1000 \
+DEVICE_NUMBER=100 \
+SENSOR_NUMBER=10 \
+BATCH_SIZE_PER_WRITE=100 \
+CLIENT_NUMBER=10 \
+node benchmark/benchmark-tree.js
+
+# Total data points = 100 devices × 100 rows × 10 sensors × 1000 loops = 100,000,000
+```
+
+### Device-Session Binding for Optimal Performance
+
+```bash
+# Bind 100 devices to 10 sessions (10 devices per session)
+LOOP=1000 \
+DEVICE_NUMBER=100 \
+SENSOR_NUMBER=10 \
+BATCH_SIZE_PER_WRITE=100 \
+POOL_MAX_SIZE=10 \
+ENABLE_DEVICE_SESSION_BINDING=true \
+node benchmark/benchmark-tree.js
+```
+
+### Basic Test with Moderate Load (Legacy Mode)
 
 ```bash
 CLIENT_NUMBER=5 \
