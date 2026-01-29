@@ -158,7 +158,7 @@ class Int32ArrayColumnDecoder implements ColumnDecoder {
             values[i] = null;
             continue;
           }
-          values[i] = buffer.readInt32LE(currentOffset);
+          values[i] = buffer.readInt32BE(currentOffset);
           currentOffset += 4;
         }
         break;
@@ -169,7 +169,7 @@ class Int32ArrayColumnDecoder implements ColumnDecoder {
             values[i] = null;
             continue;
           }
-          values[i] = buffer.readFloatLE(currentOffset);
+          values[i] = buffer.readFloatBE(currentOffset);
           currentOffset += 4;
         }
         break;
@@ -225,7 +225,7 @@ class Int64ArrayColumnDecoder implements ColumnDecoder {
             values[i] = null;
             continue;
           }
-          values[i] = buffer.readBigInt64LE(currentOffset);
+          values[i] = buffer.readBigInt64BE(currentOffset);
           currentOffset += 8;
         }
         break;
@@ -236,7 +236,7 @@ class Int64ArrayColumnDecoder implements ColumnDecoder {
             values[i] = null;
             continue;
           }
-          values[i] = buffer.readDoubleLE(currentOffset);
+          values[i] = buffer.readDoubleBE(currentOffset);
           currentOffset += 8;
         }
         break;
