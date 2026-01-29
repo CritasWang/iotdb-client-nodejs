@@ -144,6 +144,7 @@ async function main() {
     // Step 2: Create session pool
     console.log('\nStep 2: Initializing session pool...');
     pool = createSessionPool(config);
+    console.log('  Created pool object, calling init()...');
     await pool.init();
     console.log(`✓ Session pool initialized: ${pool.getPoolSize()} connections`);
 

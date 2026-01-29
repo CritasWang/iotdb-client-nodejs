@@ -697,6 +697,30 @@ See the `examples/` directory for more usage examples:
 - `examples/multi-node.ts` - Multi-node configuration
 - `examples/ssl-connection.ts` - SSL/TLS connection
 
+## Benchmark Tools
+
+Comprehensive performance testing tools are available in the `benchmark/` directory:
+
+- **Tree Model Benchmark** - Test timeseries data model performance
+- **Table Model Benchmark** - Test relational data model performance
+- Pre-generated test data for consistent results
+- Concurrent client simulation
+- Detailed performance metrics (throughput, latency, percentiles)
+
+See [benchmark/README.md](benchmark/README.md) for detailed usage instructions.
+
+Quick start:
+```bash
+# Test benchmark infrastructure (no IoTDB required)
+node benchmark/test-benchmark.js
+
+# Run tree model benchmark
+CLIENT_NUMBER=10 DEVICE_NUMBER=100 node benchmark/benchmark-tree.js
+
+# Run table model benchmark
+CLIENT_NUMBER=10 DEVICE_NUMBER=100 node benchmark/benchmark-table.js
+```
+
 ## Documentation
 
 Comprehensive documentation is available in the [docs/](docs/) directory:

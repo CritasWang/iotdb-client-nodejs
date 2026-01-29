@@ -27,6 +27,26 @@ This benchmark suite provides two specialized tools for testing IoTDB write perf
 2. Running IoTDB instance (v1.0+)
 3. Built IoTDB client library
 
+**Note:** The benchmark tools require a working IoTDB instance. If you encounter connection issues, please ensure:
+- IoTDB is fully started and accepting connections
+- The host and port are correctly configured
+- Network connectivity is available
+- The client library's SessionPool is properly initialized
+
+### Testing the Benchmark Infrastructure
+
+To verify the benchmark tools are correctly installed and configured:
+
+```bash
+node benchmark/test-benchmark.js
+```
+
+This will test the benchmark infrastructure without requiring IoTDB connection, validating:
+- Configuration management
+- Data generation
+- Metrics collection
+- Performance reporting
+
 ### Build the Client
 
 ```bash
