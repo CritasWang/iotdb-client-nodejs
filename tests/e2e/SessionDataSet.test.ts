@@ -82,7 +82,8 @@ describe("SessionDataSet E2E Tests", () => {
     );
 
     expect(dataSet).toBeDefined();
-    expect(dataSet.getColumnNames()).toEqual(["s1", "s2"]);
+    // IoTDB returns fully qualified names, but we can access by short names
+    expect(dataSet.getShortColumnNames()).toEqual(["s1", "s2"]);
 
     let rowCount = 0;
     const rows: any[] = [];

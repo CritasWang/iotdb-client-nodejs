@@ -71,6 +71,20 @@ jobs:
         run: |
           set -o pipefail
           npm run test:e2e 2>&1 | tee test-results/test-output.log
+      
+      - name: Collect Docker logs on failure
+        if: failure()
+        run: |
+          echo "=== Collecting Docker logs ==="
+          mkdir -p test-results/docker-logs
+          docker compose -f docker-compose-3c3d.yml logs > test-results/docker-logs/all-containers.log
+          docker compose -f docker-compose-3c3d.yml logs iotdb-confignode1 > test-results/docker-logs/confignode1.log
+          docker compose -f docker-compose-3c3d.yml logs iotdb-confignode2 > test-results/docker-logs/confignode2.log
+          docker compose -f docker-compose-3c3d.yml logs iotdb-confignode3 > test-results/docker-logs/confignode3.log
+          docker compose -f docker-compose-3c3d.yml logs iotdb-datanode1 > test-results/docker-logs/datanode1.log
+          docker compose -f docker-compose-3c3d.yml logs iotdb-datanode2 > test-results/docker-logs/datanode2.log
+          docker compose -f docker-compose-3c3d.yml logs iotdb-datanode3 > test-results/docker-logs/datanode3.log
+          echo "Docker logs saved to test-results/docker-logs/"
           
       - name: Stop and clean up Docker Compose
         if: always()
