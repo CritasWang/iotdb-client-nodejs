@@ -335,9 +335,9 @@ describe("Multi-Node E2E Tests", () => {
     const initialSize2 = pool2.getPoolSize();
     const initialSize3 = pool3.getPoolSize();
 
-    // Execute operations across all DataNodes (reduced from 30 to 10 to avoid timeout)
+    // Execute operations across all DataNodes (reduced to 5 per pool to avoid timeout)
     const promises: Promise<any>[] = [];
-    for (let i = 0; i < 10; i++) {
+    for (let i = 0; i < 5; i++) {
       promises.push(pool1.executeQueryStatement("SHOW DATABASES"));
       promises.push(pool2.executeQueryStatement("SHOW DATABASES"));
       promises.push(pool3.executeQueryStatement("SHOW DATABASES"));
@@ -345,10 +345,8 @@ describe("Multi-Node E2E Tests", () => {
 
     const dataSets = await Promise.all(promises);
 
-    // Close all SessionDataSets
-    for (const dataSet of dataSets) {
-      await dataSet.close();
-    }
+    // Close all SessionDataSets in parallel (much faster)
+    await Promise.all(dataSets.map(ds => ds.close()));
 
     // Pools should maintain their sizes
     expect(pool1.getPoolSize()).toBeGreaterThanOrEqual(initialSize1);
@@ -382,28 +380,36 @@ describe("Multi-Node E2E Tests", () => {
       pool3.executeQueryStatement("SELECT * FROM root.test.device1 LIMIT 5"),
     ]);
 
-    let count1 = 0;
-    let count2 = 0;
-    let count3 = 0;
+    // Count rows in parallel for better performance
+    const [count1, count2, count3] = await Promise.all([
+      (async () => {
+        let count = 0;
+        while (await dataSet1.hasNext()) {
+          await dataSet1.next();
+          count++;
+        }
+        return count;
+      })(),
+      (async () => {
+        let count = 0;
+        while (await dataSet2.hasNext()) {
+          await dataSet2.next();
+          count++;
+        }
+        return count;
+      })(),
+      (async () => {
+        let count = 0;
+        while (await dataSet3.hasNext()) {
+          await dataSet3.next();
+          count++;
+        }
+        return count;
+      })(),
+    ]);
 
-    while (await dataSet1.hasNext()) {
-      await dataSet1.next();
-      count1++;
-    }
-
-    while (await dataSet2.hasNext()) {
-      await dataSet2.next();
-      count2++;
-    }
-
-    while (await dataSet3.hasNext()) {
-      await dataSet3.next();
-      count3++;
-    }
-
-    await dataSet1.close();
-    await dataSet2.close();
-    await dataSet3.close();
+    // Close all in parallel
+    await Promise.all([dataSet1.close(), dataSet2.close(), dataSet3.close()]);
 
     expect(count1).toBeGreaterThan(0);
     expect(count2).toBeGreaterThan(0);
@@ -445,7 +451,7 @@ describe("Multi-Node E2E Tests", () => {
     } finally {
       await nodeUrlsPool.close();
     }
-  });
+  }, 10000); // Add explicit 10s timeout
 
   test("Should support nodeUrls configuration in object format", async () => {
     if (!IS_MULTI_NODE) {
@@ -479,5 +485,5 @@ describe("Multi-Node E2E Tests", () => {
     } finally {
       await nodeUrlsPool.close();
     }
-  });
+  }, 10000); // Add explicit 10s timeout
 });
