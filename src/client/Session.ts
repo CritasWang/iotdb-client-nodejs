@@ -338,35 +338,40 @@ export class Session {
         return Buffer.from(
           values.map((v) => (v === null || v === undefined ? 0 : v ? 1 : 0)),
         );
-      case 1: // INT32
-        return Buffer.from(
-          new Int32Array(
-            values.map((v) => (v === null || v === undefined ? 0 : v)),
-          ).buffer,
-        );
-      case 2: // INT64
-        return Buffer.from(
-          new BigInt64Array(
-            values.map((v) =>
-              v === null || v === undefined ? BigInt(0) : BigInt(v),
-            ),
-          ).buffer,
-        );
+      case 1: {
+        // INT32 - Use big-endian
+        const buffer = Buffer.alloc(values.length * 4);
+        values.forEach((v, i) => {
+          buffer.writeInt32BE(v === null || v === undefined ? 0 : v, i * 4);
+        });
+        return buffer;
+      }
+      case 2: {
+        // INT64 - Use big-endian
+        const buffer = Buffer.alloc(values.length * 8);
+        values.forEach((v, i) => {
+          buffer.writeBigInt64BE(
+            v === null || v === undefined ? BigInt(0) : BigInt(v),
+            i * 8,
+          );
+        });
+        return buffer;
+      }
       case 3: {
-        // FLOAT
-        return Buffer.from(
-          new Float32Array(
-            values.map((v) => (v === null || v === undefined ? 0.0 : v)),
-          ).buffer,
-        );
+        // FLOAT - Use big-endian
+        const buffer = Buffer.alloc(values.length * 4);
+        values.forEach((v, i) => {
+          buffer.writeFloatBE(v === null || v === undefined ? 0.0 : v, i * 4);
+        });
+        return buffer;
       }
       case 4: {
-        // DOUBLE
-        return Buffer.from(
-          new Float64Array(
-            values.map((v) => (v === null || v === undefined ? 0.0 : v)),
-          ).buffer,
-        );
+        // DOUBLE - Use big-endian
+        const buffer = Buffer.alloc(values.length * 8);
+        values.forEach((v, i) => {
+          buffer.writeDoubleBE(v === null || v === undefined ? 0.0 : v, i * 8);
+        });
+        return buffer;
       }
       case 5: // TEXT
       case 11: {
@@ -397,20 +402,20 @@ export class Session {
         );
       }
       case 9: {
-        // DATE (stored as INT32 - days since epoch)
-        return Buffer.from(
-          new Int32Array(
-            values.map((v) => {
-              if (v === null || v === undefined) {
-                return 0;
-              }
-              if (v instanceof Date) {
-                return Math.floor(v.getTime() / (24 * 60 * 60 * 1000));
-              }
-              return v;
-            }),
-          ).buffer,
-        );
+        // DATE (stored as INT32 - days since epoch) - Use big-endian
+        const buffer = Buffer.alloc(values.length * 4);
+        values.forEach((v, i) => {
+          let days = 0;
+          if (v !== null && v !== undefined) {
+            if (v instanceof Date) {
+              days = Math.floor(v.getTime() / (24 * 60 * 60 * 1000));
+            } else {
+              days = v;
+            }
+          }
+          buffer.writeInt32BE(days, i * 4);
+        });
+        return buffer;
       }
       case 10: {
         // BLOB
