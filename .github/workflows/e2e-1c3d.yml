@@ -34,7 +34,7 @@ jobs:
         run: |
           docker compose -f docker-compose-1c3d.yml up -d
           echo "Waiting for IoTDB cluster to be ready..."
-          sleep 75
+          sleep 5
       
       - name: Verify IoTDB ports are listening
         run: |
