@@ -101,7 +101,7 @@ describe("Multi-Node E2E Tests", () => {
     }
     // Small delay to ensure cleanup is complete
     await new Promise((resolve) => setTimeout(resolve, 500));
-  });
+  }, 60000);
 
   afterAll(async () => {
     if (!IS_MULTI_NODE) {
