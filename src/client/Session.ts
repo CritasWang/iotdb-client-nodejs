@@ -254,12 +254,19 @@ export class Session {
       return BigInt(Math.floor(t));
     });
 
+    // Serialize timestamps in big-endian format (Java/network standard)
+    // IoTDB expects big-endian byte order for insertTablet operation
+    const timestampBuffer = Buffer.alloc(bigIntTimestamps.length * 8);
+    bigIntTimestamps.forEach((ts, i) => {
+      timestampBuffer.writeBigInt64BE(ts, i * 8);
+    });
+
     const req = new ttypes.TSInsertTabletReq({
       sessionId: sessionId,
       prefixPath: tablet.deviceId,
       measurements: tablet.measurements,
       values: this.serializeTabletValues(tablet),
-      timestamps: Buffer.from(new BigInt64Array(bigIntTimestamps).buffer),
+      timestamps: timestampBuffer,
       types: tablet.dataTypes,
       size: tablet.timestamps.length,
       isAligned: false,
