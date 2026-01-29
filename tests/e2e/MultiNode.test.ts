@@ -89,19 +89,7 @@ describe("Multi-Node E2E Tests", () => {
     }
   }, 60000);
 
-  beforeEach(async () => {
-    if (!IS_MULTI_NODE || !isConnected) {
-      return;
-    }
-    // Clean up database before each test to ensure clean state
-    try {
-      await pool1.executeNonQueryStatement("DROP DATABASE root.test");
-    } catch (error) {
-      // Ignore if doesn't exist
-    }
-    // Small delay to ensure cleanup is complete
-    await new Promise((resolve) => setTimeout(resolve, 500));
-  }, 60000);
+  // No beforeEach cleanup - tests handle "already exists" errors like other test files
 
   afterAll(async () => {
     if (!IS_MULTI_NODE) {
@@ -141,8 +129,17 @@ describe("Multi-Node E2E Tests", () => {
       return;
     }
 
-    // Create database (should work since beforeEach cleans up)
-    await pool1.executeNonQueryStatement("CREATE DATABASE root.test");
+    // Create database - ignore if already exists (like other tests)
+    try {
+      await pool1.executeNonQueryStatement("CREATE DATABASE root.test");
+    } catch (error: any) {
+      if (
+        !error.message?.includes("already exist") &&
+        !error.message?.includes("has already been created")
+      ) {
+        throw error;
+      }
+    }
 
     // Create timeseries - ignore if already exist
     try {
@@ -238,8 +235,8 @@ describe("Multi-Node E2E Tests", () => {
       values: [[99.9, 99.9]],
     });
 
-    // Wait a bit for replication
-    await new Promise((resolve) => setTimeout(resolve, 2000));
+    // Wait briefly for replication (optimized from 2000ms to 200ms)
+    await new Promise((resolve) => setTimeout(resolve, 200));
 
     // Query from all three DataNodes - should see the same data
     const dataSet1 = await pool1.executeQueryStatement(
@@ -375,8 +372,8 @@ describe("Multi-Node E2E Tests", () => {
       values: [[20.0, 60.0], [21.0, 61.0], [22.0, 62.0]],
     });
 
-    // Small delay for data to be available
-    await new Promise((resolve) => setTimeout(resolve, 500));
+    // Brief delay for data availability (optimized from 500ms to 100ms)
+    await new Promise((resolve) => setTimeout(resolve, 100));
 
     // Execute queries simultaneously on all three DataNodes
     const [dataSet1, dataSet2, dataSet3] = await Promise.all([
