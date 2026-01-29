@@ -487,7 +487,7 @@ describe("All Data Types E2E Tests", () => {
     expect(avgRows.length).toBeGreaterThan(0);
 
     const maxDataSet = await session.executeQueryStatement(
-      "SELECT MAX_VALUE(int32_sensor) FROM root.test.device1",
+      "SELECT max_value(int32_sensor) FROM root.test.device1",
     );
     const maxRows = [];
     while (await maxDataSet.hasNext()) {
@@ -497,7 +497,7 @@ describe("All Data Types E2E Tests", () => {
     expect(maxRows.length).toBeGreaterThan(0);
 
     const minDataSet = await session.executeQueryStatement(
-      "SELECT MIN_VALUE(double_sensor) FROM root.test.device1",
+      "SELECT min_value(double_sensor) FROM root.test.device1",
     );
     const minRows = [];
     while (await minDataSet.hasNext()) {
