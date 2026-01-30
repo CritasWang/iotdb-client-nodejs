@@ -109,7 +109,8 @@ export class TableSessionPool extends BaseSessionPool {
       await session.executeNonQueryStatement(sql);
 
       // Track database context changes from USE statements (table model only)
-      const usePattern = /^\s*USE\s+(\w+)\s*;?\s*$/i;
+      // IoTDB database names can include letters, digits, underscores, dots, and hyphens
+      const usePattern = /^\s*USE\s+([a-zA-Z0-9_.-]+)\s*;?\s*$/i;
       const match = sql.match(usePattern);
       if (match) {
         const newDatabase = match[1];
