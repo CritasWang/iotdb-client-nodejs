@@ -87,8 +87,8 @@ console.log('All rows:', allRows);
 const customDataSet = await session.executeQueryStatement('SELECT * FROM root.test.**', 30000);
 // ... iterate and close
 
-// Insert tablet data
-await session.insertTablet({
+// Insert tree tablet data (tree/timeseries model)
+await session.insertTreeTablet({
   deviceId: 'root.test.device1',
   measurements: ['temperature', 'humidity'],
   dataTypes: [3, 3], // FLOAT
