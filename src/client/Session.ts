@@ -45,12 +45,13 @@ export { SessionDataSet, RowRecord };
 
 /**
  * Column category for table model
+ * Matches C# and Java IoTDB client definitions
  */
 export enum ColumnCategory {
-  ID = 0,
-  TIME = 1,
-  MEASUREMENT = 2,
-  ATTRIBUTE = 3,
+  TAG = 0,        // Tag column - for device identification
+  FIELD = 1,      // Field column - measurement values
+  ATTRIBUTE = 2,  // Attribute column - device attributes
+  TIME = 3,       // Time column
 }
 
 /**
@@ -372,14 +373,15 @@ export class Session {
       timestampBuffer.writeBigInt64BE(ts, i * 8);
     });
 
-    // For table model, the measurements are the non-ID and non-TIME columns
+    // For table model, the measurements are the non-TIME columns
     const measurements: string[] = [];
     const measurementTypes: number[] = [];
     
     tablet.columnNames.forEach((name, i) => {
       const category = tablet.columnCategories[i];
-      // Include only MEASUREMENT and ATTRIBUTE columns in measurements
-      if (category === ColumnCategory.MEASUREMENT || category === ColumnCategory.ATTRIBUTE) {
+      // Include TAG, FIELD, and ATTRIBUTE columns in measurements
+      // Exclude TIME column as it's handled separately
+      if (category !== ColumnCategory.TIME) {
         measurements.push(name);
         measurementTypes.push(tablet.columnTypes[i]);
       }

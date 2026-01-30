@@ -163,7 +163,7 @@ describe("Session E2E Tests", () => {
       ],
     };
 
-    await session.insertTablet(tablet);
+    await session.insertTreeTablet(tablet);
 
     // Query the data
     const dataSet = await session.executeQueryStatement(

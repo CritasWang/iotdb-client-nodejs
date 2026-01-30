@@ -95,7 +95,7 @@ async function main() {
       tableName: "table1",
       columnNames: ["device_id", "timestamp", "column1", "column2"],
       columnTypes: [TSDataType.TEXT, TSDataType.TIMESTAMP, TSDataType.INT32, TSDataType.FLOAT],
-      columnCategories: [ColumnCategory.ID, ColumnCategory.TIME, ColumnCategory.MEASUREMENT, ColumnCategory.MEASUREMENT],
+      columnCategories: [ColumnCategory.ID, ColumnCategory.TIME, ColumnCategory.FIELD, ColumnCategory.FIELD],
       timestamps: [Date.now()],
       values: [["device_001", Date.now(), 100, 25.5]],
     });
@@ -124,7 +124,7 @@ async function main() {
         tableName: "table1",
         columnNames: ["device_id", "timestamp", "column1", "column2"],
         columnTypes: [TSDataType.TEXT, TSDataType.TIMESTAMP, TSDataType.INT32, TSDataType.FLOAT],
-        columnCategories: [ColumnCategory.ID, ColumnCategory.TIME, ColumnCategory.MEASUREMENT, ColumnCategory.MEASUREMENT],
+        columnCategories: [ColumnCategory.ID, ColumnCategory.TIME, ColumnCategory.FIELD, ColumnCategory.FIELD],
         timestamps: [Date.now() + 1000],
         values: [["device_002", Date.now() + 1000, 200, 30.5]],
       });

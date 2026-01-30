@@ -19,6 +19,7 @@
 
 import { TableSessionPool } from "../../src/client/TableSessionPool";
 import { TSDataType } from "../../src/utils/DataTypes";
+import { ColumnCategory } from "../../src/client/Session";
 
 describe("TableSessionPool E2E Tests", () => {
   const IOTDB_HOST = process.env.IOTDB_HOST || "localhost";
@@ -137,8 +138,9 @@ describe("TableSessionPool E2E Tests", () => {
 
     // Insert data using tablet - simplified to 50 records
     const tablet = {
-      deviceId: tableName,
-      measurements: [
+      tableName: tableName,
+      columnNames: [
+        "time",
         "region_id",
         "plant_id",
         "device_id",
@@ -146,7 +148,8 @@ describe("TableSessionPool E2E Tests", () => {
         "temperature",
         "humidity",
       ],
-      dataTypes: [
+      columnTypes: [
+        TSDataType.TIMESTAMP,
         TSDataType.STRING,
         TSDataType.STRING,
         TSDataType.STRING,
@@ -154,16 +157,25 @@ describe("TableSessionPool E2E Tests", () => {
         TSDataType.FLOAT,
         TSDataType.DOUBLE,
       ],
+      columnCategories: [
+        ColumnCategory.TIME,
+        ColumnCategory.ATTRIBUTE,
+        ColumnCategory.ATTRIBUTE,
+        ColumnCategory.TAG,
+        ColumnCategory.ATTRIBUTE,
+        ColumnCategory.FIELD,
+        ColumnCategory.FIELD,
+      ],
       timestamps: [] as number[],
       values: [] as any[][],
     };
 
     for (let i = 0; i < 50; i++) {
       tablet.timestamps.push(i);
-      tablet.values.push(["1", "5", "3", "A", 1.23 + i, 111.1 + i]);
+      tablet.values.push([i, "1", "5", "3", "A", 1.23 + i, 111.1 + i]);
     }
 
-    await pool.insertTablet(tablet);
+    await pool.insertTableTablet(tablet);
 
     // Query the data
     const dataSet = await pool.executeQueryStatement(
@@ -217,9 +229,10 @@ describe("TableSessionPool E2E Tests", () => {
 
     // Insert data with some null values
     const tablet = {
-      deviceId: tableName,
-      measurements: ["t1", "f1"],
-      dataTypes: [TSDataType.STRING, TSDataType.INT32],
+      tableName: tableName,
+      columnNames: ["time", "t1", "f1"],
+      columnTypes: [TSDataType.TIMESTAMP, TSDataType.STRING, TSDataType.INT32],
+      columnCategories: [ColumnCategory.TIME, ColumnCategory.TAG, ColumnCategory.FIELD],
       timestamps: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
       values: [
         ["t1", 100],

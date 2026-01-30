@@ -148,7 +148,7 @@ describe("SessionPool E2E Tests", () => {
     };
 
     try {
-      await pool.insertTablet(tablet);
+      await pool.insertTreeTablet(tablet);
       // Should not throw
     } catch (error: any) {
       console.warn("Insert tablet via pool failed:", error.message);

@@ -130,7 +130,7 @@ describe("Large Query E2E Tests", () => {
         ]);
       }
 
-      await session.insertTablet({
+      await session.insertTreeTablet({
         deviceId: "root.test.device1",
         measurements: ["sensor1", "sensor2", "sensor3"],
         dataTypes: [TSDataType.FLOAT, TSDataType.FLOAT, TSDataType.FLOAT],

@@ -140,9 +140,9 @@ async function executeWrite(pool, work, session = null) {
   const columnNames = ['device_id', 'timestamp', ...work.measurements];
   const columnTypes = [5, 8, ...work.dataTypes]; // TEXT for device_id, TIMESTAMP for timestamp, then measurement types
   const columnCategories = [
-    ColumnCategory.ID,
+    ColumnCategory.TAG,
     ColumnCategory.TIME,
-    ...work.measurements.map(() => ColumnCategory.MEASUREMENT)
+    ...work.measurements.map(() => ColumnCategory.FIELD)
   ];
   
   // Build values array including device_id for each row
