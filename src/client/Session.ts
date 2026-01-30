@@ -448,15 +448,19 @@ export class Session {
 
         // Handle redirection recommendation (code 400)
         // Note: Code 400 means write SUCCEEDED but server recommends a different endpoint for future operations
-        if (response.code === 400 && response.redirectNode) {
-          // Store redirect recommendation for pool to cache
-          this.lastRedirectEndpoint = {
-            host: response.redirectNode.internalIp || response.redirectNode.ip,
-            port: response.redirectNode.port,
-          };
-          logger.debug(
-            `Server recommends endpoint ${this.lastRedirectEndpoint.host}:${this.lastRedirectEndpoint.port} for future writes to ${tablet.deviceId}`
-          );
+        if (response.code === 400) {
+          // Store redirect recommendation if provided
+          if (response.redirectNode) {
+            this.lastRedirectEndpoint = {
+              host: response.redirectNode.internalIp || response.redirectNode.ip,
+              port: response.redirectNode.port,
+            };
+            logger.debug(
+              `Server recommends endpoint ${this.lastRedirectEndpoint.host}:${this.lastRedirectEndpoint.port} for future writes to ${tablet.deviceId}`
+            );
+          } else {
+            logger.debug(`Server returned code 400 without redirect node for ${tablet.deviceId}`);
+          }
           // Resolve successfully - the write already succeeded
           resolve();
           return;
@@ -538,15 +542,19 @@ export class Session {
 
         // Handle redirection recommendation (code 400)
         // Note: Code 400 means write SUCCEEDED but server recommends a different endpoint for future operations
-        if (response.code === 400 && response.redirectNode) {
-          // Store redirect recommendation for pool to cache
-          this.lastRedirectEndpoint = {
-            host: response.redirectNode.internalIp || response.redirectNode.ip,
-            port: response.redirectNode.port,
-          };
-          logger.debug(
-            `Server recommends endpoint ${this.lastRedirectEndpoint.host}:${this.lastRedirectEndpoint.port} for future writes to table ${tablet.tableName}`
-          );
+        if (response.code === 400) {
+          // Store redirect recommendation if provided
+          if (response.redirectNode) {
+            this.lastRedirectEndpoint = {
+              host: response.redirectNode.internalIp || response.redirectNode.ip,
+              port: response.redirectNode.port,
+            };
+            logger.debug(
+              `Server recommends endpoint ${this.lastRedirectEndpoint.host}:${this.lastRedirectEndpoint.port} for future writes to table ${tablet.tableName}`
+            );
+          } else {
+            logger.debug(`Server returned code 400 without redirect node for table ${tablet.tableName}`);
+          }
           // Resolve successfully - the write already succeeded
           resolve();
           return;
