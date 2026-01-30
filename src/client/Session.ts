@@ -619,20 +619,20 @@ export class Session {
         return result;
       }
       case 8: {
-        // TIMESTAMP (stored as INT64 - milliseconds)
-        return Buffer.from(
-          new BigInt64Array(
-            values.map((v) => {
-              if (v === null || v === undefined) {
-                return BigInt(0);
-              }
-              if (v instanceof Date) {
-                return BigInt(v.getTime());
-              }
-              return BigInt(v);
-            }),
-          ).buffer,
-        );
+        // TIMESTAMP (stored as INT64 - milliseconds) - Use big-endian for consistency
+        const buffer = Buffer.alloc(values.length * 8);
+        values.forEach((v, i) => {
+          let timestamp = BigInt(0);
+          if (v !== null && v !== undefined) {
+            if (v instanceof Date) {
+              timestamp = BigInt(v.getTime());
+            } else {
+              timestamp = BigInt(v);
+            }
+          }
+          buffer.writeBigInt64BE(timestamp, i * 8);
+        });
+        return buffer;
       }
       case 9: {
         // DATE (stored as INT32 - days since epoch) - Use big-endian

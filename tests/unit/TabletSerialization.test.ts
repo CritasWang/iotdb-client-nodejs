@@ -364,12 +364,10 @@ describe('Tablet Serialization', () => {
 
       expect(buffer.length).toBe(24); // 3 values * 8 bytes
       
-      // TIMESTAMP uses BigInt64Array which is in native byte order (likely little-endian)
-      // So we need to read it correctly based on the platform
-      const dataView = new DataView(buffer.buffer, buffer.byteOffset, buffer.byteLength);
-      expect(dataView.getBigInt64(0, true)).toBe(BigInt(ts1)); // true = little-endian
-      expect(dataView.getBigInt64(8, true)).toBe(BigInt(ts2));
-      expect(dataView.getBigInt64(16, true)).toBe(BigInt(0));
+      // TIMESTAMP now uses big-endian format for consistency with other types
+      expect(buffer.readBigInt64BE(0)).toBe(BigInt(ts1));
+      expect(buffer.readBigInt64BE(8)).toBe(BigInt(ts2));
+      expect(buffer.readBigInt64BE(16)).toBe(BigInt(0));
     });
   });
 });

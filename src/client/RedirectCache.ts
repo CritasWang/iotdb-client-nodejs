@@ -64,8 +64,14 @@ export class RedirectCache {
    * Cache endpoint for a device.
    */
   set(deviceId: string, endpoint: EndPoint): void {
-    // Evict oldest entry if cache is full (simple LRU)
-    if (this.deviceToEndpoint.size >= this.maxSize) {
+    // Check if key already exists - if so, delete it first to maintain LRU order
+    const exists = this.deviceToEndpoint.has(deviceId);
+    if (exists) {
+      this.deviceToEndpoint.delete(deviceId);
+    }
+
+    // Evict oldest entry if cache is full and we're adding a new entry (not updating)
+    if (!exists && this.deviceToEndpoint.size >= this.maxSize) {
       const firstKey = this.deviceToEndpoint.keys().next().value;
       if (firstKey) {
         this.deviceToEndpoint.delete(firstKey);
@@ -73,6 +79,7 @@ export class RedirectCache {
       }
     }
 
+    // Add the entry (will be at the end of the Map, maintaining LRU order)
     this.deviceToEndpoint.set(deviceId, {
       endpoint,
       timestamp: Date.now(),

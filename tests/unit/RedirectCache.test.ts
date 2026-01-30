@@ -121,7 +121,7 @@ describe('RedirectCache', () => {
       smallCache.set('device2', { host: 'node2', port: 6668 });
       smallCache.set('device3', { host: 'node3', port: 6669 });
 
-      const stats = smallCache.getStats();
+      let stats = smallCache.getStats();
       expect(stats.size).toBe(3);
 
       // Add 4th entry, should evict device1 (oldest)
@@ -131,6 +131,9 @@ describe('RedirectCache', () => {
       expect(smallCache.get('device2')).not.toBeNull();
       expect(smallCache.get('device3')).not.toBeNull();
       expect(smallCache.get('device4')).not.toBeNull();
+      
+      // Get fresh stats after eviction
+      stats = smallCache.getStats();
       expect(stats.size).toBe(3); // Still at max size
     });
 
@@ -147,6 +150,30 @@ describe('RedirectCache', () => {
       expect(smallCache.get('device2')).toBeNull();
       expect(smallCache.get('device3')).not.toBeNull();
       expect(smallCache.get('device4')).not.toBeNull();
+    });
+
+    test('should maintain LRU order when updating existing entries', () => {
+      const smallCache = new RedirectCache(300000, 3); // Max 3 entries
+
+      // Add 3 entries
+      smallCache.set('device1', { host: 'node1', port: 6667 });
+      smallCache.set('device2', { host: 'node2', port: 6668 });
+      smallCache.set('device3', { host: 'node3', port: 6669 });
+
+      // Update device1 (should move it to end of LRU)
+      smallCache.set('device1', { host: 'node1-updated', port: 6670 });
+
+      // Add device4, should evict device2 (now oldest), not device1
+      smallCache.set('device4', { host: 'node4', port: 6671 });
+
+      expect(smallCache.get('device1')).not.toBeNull(); // Still there (recently updated)
+      expect(smallCache.get('device2')).toBeNull(); // Evicted (oldest)
+      expect(smallCache.get('device3')).not.toBeNull(); // Still there
+      expect(smallCache.get('device4')).not.toBeNull(); // Newly added
+
+      // Verify device1 has updated endpoint
+      const device1Endpoint = smallCache.get('device1');
+      expect(device1Endpoint?.port).toBe(6670);
     });
   });
 
