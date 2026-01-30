@@ -22,7 +22,7 @@
  * Table Model Benchmark
  * 
  * Performance benchmark for IoTDB table model (relational model).
- * Tests write operations using insertTablet API with pre-generated data.
+ * Tests write operations using insertTableTablet API with pre-generated data.
  * 
  * Usage:
  *   node benchmark-table.js [options]
@@ -43,6 +43,9 @@ const { createConfig, printConfig } = require('./config');
 const { prepareTestData } = require('./data-generator');
 const { createTableModelSchema, cleanupSchema } = require('./schema-manager');
 const { runBenchmark } = require('./benchmark-core');
+
+// Import ColumnCategory from dist
+const { ColumnCategory } = require('../dist');
 
 /**
  * Create table session pool
@@ -97,6 +100,7 @@ function generateWorkload(testData, config) {
           dataTypes: device.dataTypes,
           timestamps: batch.timestamps,
           values: batch.values,
+          tableName: config.TABLE_NAME,
           loopIndex: loopIdx,
         });
       }
@@ -111,6 +115,7 @@ function generateWorkload(testData, config) {
           dataTypes: device.dataTypes,
           timestamps: batch.timestamps,
           values: batch.values,
+          tableName: config.TABLE_NAME,
         });
       }
     }
@@ -131,19 +136,36 @@ async function executeWrite(pool, work, session = null) {
   const now = Date.now();
   const updatedTimestamps = work.timestamps.map((offset) => now + offset);
   
+  // Build column names, types, and categories for table model
+  const columnNames = ['device_id', 'timestamp', ...work.measurements];
+  const columnTypes = [5, 8, ...work.dataTypes]; // TEXT for device_id, TIMESTAMP for timestamp, then measurement types
+  const columnCategories = [
+    ColumnCategory.ID,
+    ColumnCategory.TIME,
+    ...work.measurements.map(() => ColumnCategory.MEASUREMENT)
+  ];
+  
+  // Build values array including device_id for each row
+  const valuesWithDeviceId = work.values.map((row, idx) => [
+    work.deviceId,
+    updatedTimestamps[idx],
+    ...row
+  ]);
+  
   const tablet = {
-    deviceId: work.deviceId,
-    measurements: work.measurements,
-    dataTypes: work.dataTypes,
+    tableName: work.tableName || 'benchmark_table',
+    columnNames: columnNames,
+    columnTypes: columnTypes,
+    columnCategories: columnCategories,
     timestamps: updatedTimestamps,
-    values: work.values,
+    values: valuesWithDeviceId,
   };
   
   // Use bound session if provided, otherwise use pool
   if (session) {
-    await session.insertTablet(tablet);
+    await session.insertTableTablet(tablet);
   } else {
-    await pool.insertTablet(tablet);
+    await pool.insertTableTablet(tablet);
   }
   
   // Return number of data points written
