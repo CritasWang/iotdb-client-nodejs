@@ -384,8 +384,7 @@ await tablePool.close();
 The client includes foundational infrastructure for client-side redirection support, but the actual runtime integration is not yet implemented. The following classes are available for future use:
 
 - `RedirectException`: Exception class for handling redirect responses
-- `RedirectCache`: LRU cache with TTL for device-to-endpoint mappings  
-- Configuration options: `enableRedirection`, `maxRedirectRetries`, `redirectCacheTTL`
+- `RedirectCache`: LRU cache with TTL for device-to-endpoint mappings
 
 **Why Not Implemented?**
 - Requires real IoTDB multi-node cluster for testing and validation
@@ -394,30 +393,12 @@ The client includes foundational infrastructure for client-side redirection supp
 - Edge cases (redirect loops, connection failures) need thorough testing
 
 **Current Behavior:**
-All write operations use standard round-robin load balancing across configured nodes. Redirection configuration options are accepted but have no effect.
-
-**For Production Use:**
-Do NOT enable `enableRedirection` expecting it to work. The infrastructure exists only for future implementation.
+All write operations use standard round-robin load balancing across configured nodes.
 
 **Future Implementation:**
 See [docs/redirection-design.md](docs/redirection-design.md) for detailed design and implementation plan.
 
-```typescript
-// Example configuration (infrastructure only - not functional)
-const pool = new SessionPool({
-  nodeUrls: ['node1:6667', 'node2:6667', 'node3:6667'],
-  username: 'root',
-  password: 'root',
-  maxPoolSize: 20,
-  
-  // These options are parsed but not used yet
-  enableRedirection: false,       // Keep disabled (default: true, but no-op)
-  maxRedirectRetries: 3,          // Not functional yet
-  redirectCacheTTL: 300000,       // Not functional yet
-});
-```
-
-**Note**: The foundation classes (RedirectException, RedirectCache) are well-tested with 77 unit tests. Implementation can proceed when real cluster testing becomes available.
+**Note**: The foundation classes (RedirectException, RedirectCache) are well-tested with unit tests. Configuration options will be added when runtime integration is complete.
 
 ## API Reference
 

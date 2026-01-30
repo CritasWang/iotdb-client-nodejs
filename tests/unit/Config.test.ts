@@ -42,9 +42,6 @@ describe('Config', () => {
     expect(DEFAULT_POOL_CONFIG.minPoolSize).toBe(1);
     expect(DEFAULT_POOL_CONFIG.maxIdleTime).toBe(60000);
     expect(DEFAULT_POOL_CONFIG.waitTimeout).toBe(60000);
-    expect(DEFAULT_POOL_CONFIG.enableRedirection).toBe(true);
-    expect(DEFAULT_POOL_CONFIG.maxRedirectRetries).toBe(3);
-    expect(DEFAULT_POOL_CONFIG.redirectCacheTTL).toBe(300000);
   });
 
   test('Should merge config with defaults', () => {
@@ -86,29 +83,6 @@ describe('Config', () => {
     expect(poolConfig.host).toBe('localhost');
     expect(poolConfig.maxPoolSize).toBe(20);
     expect(poolConfig.minPoolSize).toBe(5);
-  });
-
-  test('PoolConfig should support redirection configuration', () => {
-    const poolConfig: Partial<PoolConfig> = {
-      host: 'localhost',
-      maxPoolSize: 20,
-      enableRedirection: true,
-      maxRedirectRetries: 5,
-      redirectCacheTTL: 600000,
-    };
-
-    expect(poolConfig.enableRedirection).toBe(true);
-    expect(poolConfig.maxRedirectRetries).toBe(5);
-    expect(poolConfig.redirectCacheTTL).toBe(600000);
-  });
-
-  test('PoolConfig should allow disabling redirection', () => {
-    const poolConfig: Partial<PoolConfig> = {
-      host: 'localhost',
-      enableRedirection: false,
-    };
-
-    expect(poolConfig.enableRedirection).toBe(false);
   });
 
   test('Should support nodeUrls configuration', () => {

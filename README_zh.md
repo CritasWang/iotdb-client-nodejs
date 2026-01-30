@@ -385,7 +385,6 @@ IoTDB Node.js 客户端采用三层架构设计，针对单会话和高并发场
 
 - `RedirectException`：处理重定向响应的异常类
 - `RedirectCache`：具有 TTL 的设备到端点映射 LRU 缓存
-- 配置选项：`enableRedirection`、`maxRedirectRetries`、`redirectCacheTTL`
 
 **为什么没有实现？**
 - 需要真实的 IoTDB 多节点集群进行测试和验证
@@ -394,30 +393,12 @@ IoTDB Node.js 客户端采用三层架构设计，针对单会话和高并发场
 - 边缘情况（重定向循环、连接失败）需要彻底测试
 
 **当前行为：**
-所有写入操作使用标准轮询负载均衡跨配置的节点。接受重定向配置选项但不起作用。
-
-**生产使用：**
-请勿启用 `enableRedirection` 并期望其工作。基础设施仅供将来实现使用。
+所有写入操作使用标准轮询负载均衡跨配置的节点。
 
 **未来实现：**
 详细设计和实现计划请参见 [docs/redirection-design.md](docs/redirection-design.md)。
 
-```typescript
-// 配置示例（仅基础设施 - 不起作用）
-const pool = new SessionPool({
-  nodeUrls: ['node1:6667', 'node2:6667', 'node3:6667'],
-  username: 'root',
-  password: 'root',
-  maxPoolSize: 20,
-  
-  // 这些选项会被解析但尚未使用
-  enableRedirection: false,       // 保持禁用（默认：true，但无操作）
-  maxRedirectRetries: 3,          // 尚未起作用
-  redirectCacheTTL: 300000,       // 尚未起作用
-});
-```
-
-**注意**：基础类（RedirectException、RedirectCache）经过 77 个单元测试的充分测试。当真实集群测试可用时，可以继续实现。
+**注意**：基础类（RedirectException、RedirectCache）经过单元测试的充分测试。配置选项将在运行时集成完成后添加。
 
 ## API 参考
 
