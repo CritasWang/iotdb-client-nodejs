@@ -33,6 +33,8 @@ import {
 } from "../utils/Config";
 import { logger } from "../utils/Logger";
 import { registerClosable, unregisterClosable } from "../utils/ProcessCleanup";
+import { RedirectCache } from "./RedirectCache";
+import { RedirectException } from "../utils/Errors";
 
 interface PooledSession {
   session: Session;
@@ -51,6 +53,8 @@ export abstract class BaseSessionPool {
   protected waitQueue: Array<(session: Session) => void> = [];
   protected currentEndPointIndex = 0;
   protected cleanupInterval: NodeJS.Timeout | null = null;
+  protected redirectCache: RedirectCache;
+  protected endPointToSession: Map<string, PooledSession> = new Map();
 
   constructor(
     hostsOrConfig: string | string[] | PoolConfig,
@@ -95,8 +99,14 @@ export abstract class BaseSessionPool {
       this.endPoints = hostList.map((host) => ({ host, port }));
     }
 
+    // Initialize redirect cache
+    this.redirectCache = new RedirectCache(
+      this.config.redirectCacheTTL || 300000,
+      10000 // max size
+    );
+
     logger.info(
-      `${this.getPoolName()} created with ${this.endPoints.length} endpoints, max pool size: ${this.config.maxPoolSize}`,
+      `${this.getPoolName()} created with ${this.endPoints.length} endpoints, max pool size: ${this.config.maxPoolSize}, redirection: ${this.config.enableRedirection ? 'enabled' : 'disabled'}`,
     );
 
     registerClosable(this);
@@ -158,6 +168,58 @@ export abstract class BaseSessionPool {
       (this.currentEndPointIndex + 1) % this.endPoints.length;
     return endPoint;
   }
+
+  /**
+   * Extract device ID from tablet for caching
+   */
+  protected extractDeviceId(tablet: TreeTablet | ITreeTablet | TableTablet | ITableTablet): string {
+    if ('deviceId' in tablet) {
+      return tablet.deviceId;
+    } else if ('tableName' in tablet) {
+      return tablet.tableName;
+    }
+    throw new Error('Unable to extract device ID from tablet');
+  }
+
+  /**
+   * Get or create a session for a specific endpoint
+   */
+  protected async getSessionForEndpoint(endpoint: EndPoint): Promise<Session> {
+    const key = `${endpoint.host}:${endpoint.port}`;
+    
+    // Check if we already have a session for this endpoint
+    let pooledSession = this.endPointToSession.get(key);
+    
+    if (pooledSession && pooledSession.session.isOpen()) {
+      pooledSession.inUse = true;
+      pooledSession.lastUsed = Date.now();
+      return pooledSession.session;
+    }
+    
+    // Create new session for this endpoint
+    const session = await this.createPoolSession();
+    
+    pooledSession = {
+      session,
+      lastUsed: Date.now(),
+      inUse: true,
+    };
+    
+    this.endPointToSession.set(key, pooledSession);
+    this.pool.push(pooledSession);
+    
+    logger.info(`Created new session for redirect endpoint: ${endpoint.host}:${endpoint.port}`);
+    
+    return session;
+  }
+
+  /**
+   * Check if an error is a redirect exception
+   */
+  protected isRedirectError(error: any): boolean {
+    return error instanceof RedirectException || error.name === 'RedirectException';
+  }
+
 
   /**
    * Get a session from the pool
@@ -297,11 +359,81 @@ export abstract class BaseSessionPool {
   async insertTablet(
     tablet: TreeTablet | ITreeTablet | TableTablet | ITableTablet,
   ): Promise<void> {
-    const session = await this.getSession();
-    try {
-      return await session.insertTablet(tablet);
-    } finally {
-      this.releaseSession(session);
+    // If redirection is disabled, use simple approach
+    if (!this.config.enableRedirection) {
+      const session = await this.getSession();
+      try {
+        return await session.insertTablet(tablet);
+      } finally {
+        this.releaseSession(session);
+      }
+    }
+
+    // Redirection-aware implementation
+    const deviceId = this.extractDeviceId(tablet);
+    let retryCount = 0;
+    const maxRetries = this.config.maxRedirectRetries || 3;
+
+    while (retryCount <= maxRetries) {
+      try {
+        // Check cache for optimal endpoint
+        const cachedEndpoint = this.redirectCache.get(deviceId);
+        let session: Session;
+        let usedCache = false;
+
+        if (cachedEndpoint) {
+          // Use cached endpoint
+          session = await this.getSessionForEndpoint(cachedEndpoint);
+          usedCache = true;
+        } else {
+          // Use round-robin selection
+          session = await this.getSession();
+        }
+
+        try {
+          // Attempt insert
+          await session.insertTablet(tablet);
+          
+          // Success - release session
+          this.releaseSession(session);
+          return;
+
+        } catch (error: any) {
+          // Always release session before handling error
+          this.releaseSession(session);
+
+          // Check if this is a redirect error
+          if (this.isRedirectError(error)) {
+            const redirectError = error as RedirectException;
+            
+            logger.info(
+              `Redirect: ${deviceId} -> ${redirectError.endpoint.host}:${redirectError.endpoint.port} (attempt ${retryCount + 1}/${maxRetries + 1})`
+            );
+            
+            // Cache the endpoint and retry
+            this.redirectCache.set(deviceId, redirectError.endpoint);
+            retryCount++;
+            
+            if (retryCount > maxRetries) {
+              throw new Error(
+                `Max redirect retries (${maxRetries}) exceeded for ${deviceId}`
+              );
+            }
+            
+            // Continue to next iteration (retry)
+            continue;
+          }
+
+          // Not a redirect error - rethrow
+          throw error;
+        }
+
+      } catch (error: any) {
+        // If we've exhausted retries or it's not a redirect, throw
+        if (retryCount > maxRetries || !this.isRedirectError(error)) {
+          throw error;
+        }
+      }
     }
   }
 
@@ -324,6 +456,8 @@ export abstract class BaseSessionPool {
 
     this.pool = [];
     this.waitQueue = [];
+    this.endPointToSession.clear();
+    this.redirectCache.clear();
     unregisterClosable(this);
     logger.info(`${this.getPoolName()} closed`);
   }

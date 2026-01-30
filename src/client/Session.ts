@@ -29,6 +29,7 @@ import { registerClosable, unregisterClosable } from "../utils/ProcessCleanup";
 import { SessionDataSet } from "./SessionDataSet";
 import { RowRecord } from "./RowRecord";
 import { BaseColumnDecoder, ColumnEncoding, Column } from "./ColumnDecoder";
+import { RedirectException } from "../utils/Errors";
 
 const ttypes = require("../thrift/generated/client_types");
 
@@ -435,15 +436,17 @@ export class Session {
         }
 
         // Handle redirection recommendation (code 400)
-        // Note: Code 400 means write succeeded but server recommends a better endpoint for future operations
-        if (response.code === 400) {
-          logger.warn(`Server recommends redirection (code 400). Write succeeded but future operations may benefit from using a different endpoint.`);
-          if (response.redirectNode) {
-            logger.warn(`Recommended endpoint: ${response.redirectNode.ip || response.redirectNode.internalIp}:${response.redirectNode.port}`);
-          }
-          logger.warn(`Client-side redirection is not yet implemented. See docs/redirection-design.md for future implementation plans.`);
-          // Resolve successfully since the write operation completed
-          resolve();
+        if (response.code === 400 && response.redirectNode) {
+          // Throw RedirectException for pool to handle
+          const redirectError = new RedirectException(
+            tablet.deviceId,
+            {
+              host: response.redirectNode.internalIp || response.redirectNode.ip,
+              port: response.redirectNode.port,
+            },
+            response.message
+          );
+          reject(redirectError);
           return;
         }
 
@@ -522,15 +525,17 @@ export class Session {
         }
 
         // Handle redirection recommendation (code 400)
-        // Note: Code 400 means write succeeded but server recommends a better endpoint for future operations
-        if (response.code === 400) {
-          logger.warn(`Server recommends redirection for table ${tablet.tableName} (code 400). Write succeeded but future operations may benefit from using a different endpoint.`);
-          if (response.redirectNode) {
-            logger.warn(`Recommended endpoint: ${response.redirectNode.ip || response.redirectNode.internalIp}:${response.redirectNode.port}`);
-          }
-          logger.warn(`Client-side redirection is not yet implemented. See docs/redirection-design.md for future implementation plans.`);
-          // Resolve successfully since the write operation completed
-          resolve();
+        if (response.code === 400 && response.redirectNode) {
+          // Throw RedirectException for pool to handle
+          const redirectError = new RedirectException(
+            tablet.tableName,
+            {
+              host: response.redirectNode.internalIp || response.redirectNode.ip,
+              port: response.redirectNode.port,
+            },
+            response.message
+          );
+          reject(redirectError);
           return;
         }
 
