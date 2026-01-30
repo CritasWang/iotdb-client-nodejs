@@ -18,6 +18,7 @@
  */
 
 import { TableSessionPool } from "../../src/client/TableSessionPool";
+import { ColumnCategory } from "../../src/client/Session";
 import { TSDataType } from "../../src/utils/DataTypes";
 
 describe("Table Model All Data Types E2E Tests", () => {
@@ -111,8 +112,8 @@ describe("Table Model All Data Types E2E Tests", () => {
     // Verify table created
     const dataSet = await pool.executeQueryStatement("SHOW TABLES");
     const rows = [];
-    for await (const row of dataSet) {
-      rows.push(row);
+    while (await dataSet.hasNext()) {
+      rows.push(dataSet.next());
     }
     await dataSet.close();
     expect(rows.length).toBeGreaterThan(0);
@@ -127,11 +128,10 @@ describe("Table Model All Data Types E2E Tests", () => {
 
     const now = Date.now();
 
-    // Insert data using insertTablet - note the different structure vs tree model
-    // In table model: deviceId is the table name, measurements include tags/attributes/fields
+    // Insert data using insertTablet - table model API
     const tablet = {
-      deviceId: "all_types_table", // Table name, not hierarchical path
-      measurements: [
+      tableName: "all_types_table", // Table name
+      columnNames: [
         "region", // TAG
         "device_id", // TAG
         "model", // ATTRIBUTE
@@ -146,7 +146,7 @@ describe("Table Model All Data Types E2E Tests", () => {
         "blob_field", // FIELD
         "string_field", // FIELD
       ],
-      dataTypes: [
+      columnTypes: [
         TSDataType.STRING, // region (TAG)
         TSDataType.STRING, // device_id (TAG)
         TSDataType.STRING, // model (ATTRIBUTE)
@@ -160,6 +160,21 @@ describe("Table Model All Data Types E2E Tests", () => {
         TSDataType.DATE, // date_field
         TSDataType.BLOB, // blob_field
         TSDataType.STRING, // string_field
+      ],
+      columnCategories: [
+        ColumnCategory.TAG, // region
+        ColumnCategory.TAG, // device_id
+        ColumnCategory.ATTRIBUTE, // model
+        ColumnCategory.FIELD, // boolean_field
+        ColumnCategory.FIELD, // int32_field
+        ColumnCategory.FIELD, // int64_field
+        ColumnCategory.FIELD, // float_field
+        ColumnCategory.FIELD, // double_field
+        ColumnCategory.FIELD, // text_field
+        ColumnCategory.FIELD, // timestamp_field
+        ColumnCategory.FIELD, // date_field
+        ColumnCategory.FIELD, // blob_field
+        ColumnCategory.FIELD, // string_field
       ],
       timestamps: [now, now + 1000, now + 2000],
       values: [
@@ -221,8 +236,8 @@ describe("Table Model All Data Types E2E Tests", () => {
 
     expect(dataSet).toBeDefined();
     const rows = [];
-    for await (const row of dataSet) {
-      rows.push(row);
+    while (await dataSet.hasNext()) {
+      rows.push(dataSet.next());
     }
     await dataSet.close();
 
@@ -255,8 +270,8 @@ describe("Table Model All Data Types E2E Tests", () => {
     // Verify table in current context
     const dataSet = await pool.executeQueryStatement("SHOW TABLES");
     const rows = [];
-    for await (const row of dataSet) {
-      rows.push(row);
+    while (await dataSet.hasNext()) {
+      rows.push(dataSet.next());
     }
     await dataSet.close();
     expect(rows.length).toBeGreaterThanOrEqual(2);
@@ -276,8 +291,8 @@ describe("Table Model All Data Types E2E Tests", () => {
     );
 
     const countRows = [];
-    for await (const row of countDataSet) {
-      countRows.push(row);
+    while (await countDataSet.hasNext()) {
+      countRows.push(countDataSet.next());
     }
     await countDataSet.close();
 
@@ -290,8 +305,8 @@ describe("Table Model All Data Types E2E Tests", () => {
     );
 
     const aggRows = [];
-    for await (const row of aggDataSet) {
-      aggRows.push(row);
+    while (await aggDataSet.hasNext()) {
+      aggRows.push(aggDataSet.next());
     }
     await aggDataSet.close();
 
@@ -314,8 +329,8 @@ describe("Table Model All Data Types E2E Tests", () => {
     );
 
     const rows = [];
-    for await (const row of dataSet) {
-      rows.push(row);
+    while (await dataSet.hasNext()) {
+      rows.push(dataSet.next());
     }
     await dataSet.close();
 
@@ -349,8 +364,8 @@ describe("Table Model All Data Types E2E Tests", () => {
     );
 
     const rows = [];
-    for await (const row of dataSet) {
-      rows.push(row);
+    while (await dataSet.hasNext()) {
+      rows.push(dataSet.next());
     }
     await dataSet.close();
 
@@ -389,8 +404,8 @@ describe("Table Model All Data Types E2E Tests", () => {
     }
 
     const tablet = {
-      deviceId: "all_types_table",
-      measurements: [
+      tableName: "all_types_table",
+      columnNames: [
         "region",
         "device_id",
         "model",
@@ -405,7 +420,7 @@ describe("Table Model All Data Types E2E Tests", () => {
         "blob_field",
         "string_field",
       ],
-      dataTypes: [
+      columnTypes: [
         TSDataType.STRING,
         TSDataType.STRING,
         TSDataType.STRING,
@@ -420,6 +435,21 @@ describe("Table Model All Data Types E2E Tests", () => {
         TSDataType.BLOB,
         TSDataType.STRING,
       ],
+      columnCategories: [
+        ColumnCategory.TAG,
+        ColumnCategory.TAG,
+        ColumnCategory.ATTRIBUTE,
+        ColumnCategory.FIELD,
+        ColumnCategory.FIELD,
+        ColumnCategory.FIELD,
+        ColumnCategory.FIELD,
+        ColumnCategory.FIELD,
+        ColumnCategory.FIELD,
+        ColumnCategory.FIELD,
+        ColumnCategory.FIELD,
+        ColumnCategory.FIELD,
+        ColumnCategory.FIELD,
+      ],
       timestamps,
       values,
     };
@@ -433,8 +463,8 @@ describe("Table Model All Data Types E2E Tests", () => {
     );
 
     const rows = [];
-    for await (const row of dataSet) {
-      rows.push(row);
+    while (await dataSet.hasNext()) {
+      rows.push(dataSet.next());
     }
     await dataSet.close();
 
