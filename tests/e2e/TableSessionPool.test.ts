@@ -136,7 +136,8 @@ describe("TableSessionPool E2E Tests", () => {
         "humidity DOUBLE FIELD)",
     );
 
-    // Insert data using tablet - simplified to 50 records
+    // Insert data using tablet with explicit column categories
+    // Each column's category determines its indexing and query behavior
     const tablet = {
       tableName: tableName,
       columnNames: [
@@ -158,13 +159,13 @@ describe("TableSessionPool E2E Tests", () => {
         TSDataType.DOUBLE,
       ],
       columnCategories: [
-        ColumnCategory.TIME,
-        ColumnCategory.ATTRIBUTE,
-        ColumnCategory.ATTRIBUTE,
-        ColumnCategory.TAG,
-        ColumnCategory.ATTRIBUTE,
-        ColumnCategory.FIELD,
-        ColumnCategory.FIELD,
+        ColumnCategory.TIME,       // time - timestamp column
+        ColumnCategory.ATTRIBUTE,  // region_id - metadata (not indexed)
+        ColumnCategory.ATTRIBUTE,  // plant_id - metadata (not indexed)
+        ColumnCategory.TAG,        // device_id - indexed tag for filtering
+        ColumnCategory.ATTRIBUTE,  // model - metadata (not indexed)
+        ColumnCategory.FIELD,      // temperature - measurement value
+        ColumnCategory.FIELD,      // humidity - measurement value
       ],
       timestamps: [] as number[],
       values: [] as any[][],
@@ -175,7 +176,7 @@ describe("TableSessionPool E2E Tests", () => {
       tablet.values.push([i, "1", "5", "3", "A", 1.23 + i, 111.1 + i]);
     }
 
-    await pool.insertTableTablet(tablet);
+    await pool.insertTablet(tablet);
 
     // Query the data
     const dataSet = await pool.executeQueryStatement(
@@ -227,12 +228,16 @@ describe("TableSessionPool E2E Tests", () => {
       `CREATE TABLE ${tableName}(t1 STRING TAG, f1 INT32 FIELD)`,
     );
 
-    // Insert data with some null values
+    // Insert data with explicit ColumnCategory enum showing best practices
     const tablet = {
       tableName: tableName,
       columnNames: ["time", "t1", "f1"],
       columnTypes: [TSDataType.TIMESTAMP, TSDataType.STRING, TSDataType.INT32],
-      columnCategories: [ColumnCategory.TIME, ColumnCategory.TAG, ColumnCategory.FIELD],
+      columnCategories: [
+        ColumnCategory.TIME,  // Timestamp column - identifies the time dimension
+        ColumnCategory.TAG,   // Tag column - indexed for efficient filtering in WHERE clauses
+        ColumnCategory.FIELD, // Field column - stores measurement/sensor values
+      ],
       timestamps: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
       values: [
         ["t1", 100],

@@ -89,13 +89,18 @@ async function main() {
     await dataSet.close();
     console.log("Databases found:", dbCount);
 
-    // Insert data using new TableTablet interface
+    // Insert data using TableTablet interface with explicit column categories
     console.log("Inserting table data...");
     await pool.insertTablet({
       tableName: "table1",
       columnNames: ["device_id", "timestamp", "column1", "column2"],
       columnTypes: [TSDataType.TEXT, TSDataType.TIMESTAMP, TSDataType.INT32, TSDataType.FLOAT],
-      columnCategories: [ColumnCategory.ID, ColumnCategory.TIME, ColumnCategory.FIELD, ColumnCategory.FIELD],
+      columnCategories: [
+        ColumnCategory.TAG,    // device_id - indexed tag for filtering
+        ColumnCategory.TIME,   // timestamp - time column
+        ColumnCategory.FIELD,  // column1 - measurement value
+        ColumnCategory.FIELD,  // column2 - measurement value
+      ],
       timestamps: [Date.now()],
       values: [["device_001", Date.now(), 100, 25.5]],
     });
@@ -119,12 +124,17 @@ async function main() {
       await queryDataSet.close();
       console.log("Query result:", rowCount, "rows");
 
-      // Insert with explicit session using TableTablet
+      // Insert with explicit session using TableTablet with column categories
       await session.insertTablet({
         tableName: "table1",
         columnNames: ["device_id", "timestamp", "column1", "column2"],
         columnTypes: [TSDataType.TEXT, TSDataType.TIMESTAMP, TSDataType.INT32, TSDataType.FLOAT],
-        columnCategories: [ColumnCategory.ID, ColumnCategory.TIME, ColumnCategory.FIELD, ColumnCategory.FIELD],
+        columnCategories: [
+          ColumnCategory.TAG,    // device_id - indexed tag
+          ColumnCategory.TIME,   // timestamp - time column
+          ColumnCategory.FIELD,  // column1 - measurement
+          ColumnCategory.FIELD,  // column2 - measurement
+        ],
         timestamps: [Date.now() + 1000],
         values: [["device_002", Date.now() + 1000, 200, 30.5]],
       });

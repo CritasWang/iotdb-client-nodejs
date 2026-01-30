@@ -350,27 +350,46 @@ Inserts data into a table using tablet format.
 **TableTablet Interface:**
 ```typescript
 interface TableTablet {
-  tableName: string;              // Table name
-  columnNames: string[];          // Column names
-  columnTypes: number[];          // Data type codes
-  columnCategories: number[];     // Column categories (TAG/ATTRIBUTE/FIELD)
-  timestamps: number[];           // Timestamps in milliseconds
-  values: any[][];               // 2D array: [rows][columns]
+  tableName: string;                    // Table name
+  columnNames: string[];                // Column names
+  columnTypes: number[];                // Data type codes (TSDataType)
+  columnCategories: ColumnCategory[];   // Column categories
+  timestamps: number[];                 // Timestamps in milliseconds
+  values: any[][];                     // 2D array: [rows][columns]
 }
 ```
 
-**Column Categories:**
-- `0` - TAG (indexed, for filtering)
-- `1` - ATTRIBUTE (metadata, not indexed)
-- `2` - FIELD (measurement values)
-
-**Example:**
+**ColumnCategory Enum:**
 ```typescript
+enum ColumnCategory {
+  TAG = 0,        // Tag column - for device identification (indexed, used in WHERE clauses)
+  FIELD = 1,      // Field column - measurement values
+  ATTRIBUTE = 2,  // Attribute column - device metadata (not indexed)
+  TIME = 3,       // Time column - timestamp column
+}
+```
+
+**Column Categories Explained:**
+- `TAG` (0) - Indexed columns used for filtering in WHERE clauses (e.g., device_id, region_id)
+- `FIELD` (1) - Measurement values (e.g., temperature, humidity)
+- `ATTRIBUTE` (2) - Metadata not used for filtering (e.g., device_model, firmware_version)
+- `TIME` (3) - Timestamp column (usually auto-managed)
+
+**Example with ColumnCategory enum:**
+```typescript
+import { ColumnCategory, TSDataType } from 'iotdb-client-nodejs';
+
 await pool.insertTablet({
   tableName: 'sensor_data',
   columnNames: ['region_id', 'device_id', 'model', 'temperature', 'humidity'],
-  columnTypes: [5, 5, 5, 3, 4],           // STRING, STRING, STRING, FLOAT, DOUBLE
-  columnCategories: [0, 0, 1, 2, 2],      // TAG, TAG, ATTRIBUTE, FIELD, FIELD
+  columnTypes: [TSDataType.TEXT, TSDataType.TEXT, TSDataType.TEXT, TSDataType.FLOAT, TSDataType.DOUBLE],
+  columnCategories: [
+    ColumnCategory.TAG,        // region_id - indexed tag
+    ColumnCategory.TAG,        // device_id - indexed tag
+    ColumnCategory.ATTRIBUTE,  // model - metadata
+    ColumnCategory.FIELD,      // temperature - measurement
+    ColumnCategory.FIELD,      // humidity - measurement
+  ],
   timestamps: [
     Date.now(),
     Date.now() + 1000,
@@ -381,6 +400,18 @@ await pool.insertTablet({
     ['region1', 'device001', 'ModelA', 26.0, 61.5],
     ['region1', 'device002', 'ModelB', 24.8, 58.5],
   ],
+});
+```
+
+**Example with numeric values (also supported):**
+```typescript
+await pool.insertTablet({
+  tableName: 'sensor_data',
+  columnNames: ['region_id', 'device_id', 'model', 'temperature', 'humidity'],
+  columnTypes: [5, 5, 5, 3, 4],           // TEXT, TEXT, TEXT, FLOAT, DOUBLE
+  columnCategories: [0, 0, 2, 1, 1],      // TAG, TAG, ATTRIBUTE, FIELD, FIELD
+  timestamps: [Date.now()],
+  values: [['region1', 'device001', 'ModelA', 25.5, 60.0]],
 });
 ```
 

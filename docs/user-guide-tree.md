@@ -307,18 +307,39 @@ Inserts a batch of data points efficiently.
 **Parameters:**
 - `tablet`: Tablet object containing device data
 
-**Tablet Interface:**
+**Tablet Interface (TreeTablet):**
 ```typescript
-interface Tablet {
+interface TreeTablet {
   deviceId: string;           // Device path (e.g., 'root.test.device1')
   measurements: string[];     // Measurement names
-  dataTypes: number[];        // Data type codes (see section 7)
+  dataTypes: number[];        // Data type codes (TSDataType - see section 7)
   timestamps: number[];       // Timestamps in milliseconds
   values: any[][];           // 2D array: [rows][columns]
 }
 ```
 
-**Example:**
+**Example using TSDataType enum:**
+```typescript
+import { TSDataType } from 'iotdb-client-nodejs';
+
+await session.insertTablet({
+  deviceId: 'root.test.device1',
+  measurements: ['temperature', 'humidity', 'status'],
+  dataTypes: [TSDataType.FLOAT, TSDataType.FLOAT, TSDataType.BOOLEAN],
+  timestamps: [
+    Date.now(),
+    Date.now() + 1000,
+    Date.now() + 2000,
+  ],
+  values: [
+    [25.5, 60.0, true],
+    [26.0, 61.5, true],
+    [25.8, 59.5, false],
+  ],
+});
+```
+
+**Example using numeric data type codes:**
 ```typescript
 await session.insertTablet({
   deviceId: 'root.test.device1',

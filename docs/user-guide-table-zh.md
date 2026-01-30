@@ -350,27 +350,46 @@ await pool.executeNonQueryStatement('DROP DATABASE my_db');
 **TableTablet 接口:**
 ```typescript
 interface TableTablet {
-  tableName: string;              // 表名
-  columnNames: string[];          // 列名
-  columnTypes: number[];          // 数据类型代码
-  columnCategories: number[];     // 列类别(TAG/ATTRIBUTE/FIELD)
-  timestamps: number[];           // 时间戳(毫秒)
-  values: any[][];               // 二维数组: [行][列]
+  tableName: string;                    // 表名
+  columnNames: string[];                // 列名
+  columnTypes: number[];                // 数据类型代码 (TSDataType)
+  columnCategories: ColumnCategory[];   // 列类别
+  timestamps: number[];                 // 时间戳(毫秒)
+  values: any[][];                     // 二维数组: [行][列]
 }
 ```
 
-**列类别:**
-- `0` - TAG(已索引,用于过滤)
-- `1` - ATTRIBUTE(元数据,未索引)
-- `2` - FIELD(测量值)
-
-**示例:**
+**ColumnCategory 枚举:**
 ```typescript
+enum ColumnCategory {
+  TAG = 0,        // 标签列 - 用于设备标识(已索引,用于 WHERE 子句)
+  FIELD = 1,      // 字段列 - 测量值
+  ATTRIBUTE = 2,  // 属性列 - 设备元数据(未索引)
+  TIME = 3,       // 时间列 - 时间戳列
+}
+```
+
+**列类别说明:**
+- `TAG` (0) - 用于筛选的索引列(例如 device_id、region_id)
+- `FIELD` (1) - 测量值(例如 temperature、humidity)
+- `ATTRIBUTE` (2) - 不用于筛选的元数据(例如 device_model、firmware_version)
+- `TIME` (3) - 时间戳列(通常自动管理)
+
+**使用 ColumnCategory 枚举的示例:**
+```typescript
+import { ColumnCategory, TSDataType } from 'iotdb-client-nodejs';
+
 await pool.insertTablet({
   tableName: 'sensor_data',
   columnNames: ['region_id', 'device_id', 'model', 'temperature', 'humidity'],
-  columnTypes: [5, 5, 5, 3, 4],           // STRING, STRING, STRING, FLOAT, DOUBLE
-  columnCategories: [0, 0, 1, 2, 2],      // TAG, TAG, ATTRIBUTE, FIELD, FIELD
+  columnTypes: [TSDataType.TEXT, TSDataType.TEXT, TSDataType.TEXT, TSDataType.FLOAT, TSDataType.DOUBLE],
+  columnCategories: [
+    ColumnCategory.TAG,        // region_id - 索引标签
+    ColumnCategory.TAG,        // device_id - 索引标签
+    ColumnCategory.ATTRIBUTE,  // model - 元数据
+    ColumnCategory.FIELD,      // temperature - 测量值
+    ColumnCategory.FIELD,      // humidity - 测量值
+  ],
   timestamps: [
     Date.now(),
     Date.now() + 1000,
@@ -381,6 +400,18 @@ await pool.insertTablet({
     ['region1', 'device001', 'ModelA', 26.0, 61.5],
     ['region1', 'device002', 'ModelB', 24.8, 58.5],
   ],
+});
+```
+
+**使用数字值的示例(也支持):**
+```typescript
+await pool.insertTablet({
+  tableName: 'sensor_data',
+  columnNames: ['region_id', 'device_id', 'model', 'temperature', 'humidity'],
+  columnTypes: [5, 5, 5, 3, 4],           // TEXT, TEXT, TEXT, FLOAT, DOUBLE
+  columnCategories: [0, 0, 2, 1, 1],      // TAG, TAG, ATTRIBUTE, FIELD, FIELD
+  timestamps: [Date.now()],
+  values: [['region1', 'device001', 'ModelA', 25.5, 60.0]],
 });
 ```
 

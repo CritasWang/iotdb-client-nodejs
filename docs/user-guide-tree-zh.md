@@ -307,18 +307,39 @@ await session.executeNonQueryStatement(
 **参数:**
 - `tablet`: 包含设备数据的 Tablet 对象
 
-**Tablet 接口:**
+**Tablet 接口 (TreeTablet):**
 ```typescript
-interface Tablet {
+interface TreeTablet {
   deviceId: string;           // 设备路径 (例如 'root.test.device1')
   measurements: string[];     // 测点名称
-  dataTypes: number[];        // 数据类型代码(见第 7 节)
+  dataTypes: number[];        // 数据类型代码 (TSDataType - 参见第 7 节)
   timestamps: number[];       // 时间戳(毫秒)
   values: any[][];           // 二维数组: [行][列]
 }
 ```
 
-**示例:**
+**使用 TSDataType 枚举的示例:**
+```typescript
+import { TSDataType } from 'iotdb-client-nodejs';
+
+await session.insertTablet({
+  deviceId: 'root.test.device1',
+  measurements: ['temperature', 'humidity', 'status'],
+  dataTypes: [TSDataType.FLOAT, TSDataType.FLOAT, TSDataType.BOOLEAN],
+  timestamps: [
+    Date.now(),
+    Date.now() + 1000,
+    Date.now() + 2000,
+  ],
+  values: [
+    [25.5, 60.0, true],
+    [26.0, 61.5, true],
+    [25.8, 59.5, false],
+  ],
+});
+```
+
+**使用数字数据类型代码的示例:**
 ```typescript
 await session.insertTablet({
   deviceId: 'root.test.device1',
