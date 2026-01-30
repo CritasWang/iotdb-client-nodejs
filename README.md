@@ -563,8 +563,10 @@ interface PoolConfig extends Config {
 #### Tablet
 ```typescript
 #### TreeTablet (Tree Model / Timeseries Model)
+
+**Interface (for plain objects):**
 ```typescript
-interface TreeTablet {
+interface ITreeTablet {
   deviceId: string;           // Full path like "root.test.device1"
   measurements: string[];     // Sensor names
   dataTypes: number[];        // TSDataType for each measurement
@@ -573,15 +575,48 @@ interface TreeTablet {
 }
 ```
 
-#### TableTablet (Table Model / Relational Model)
+**Class (with helper methods):**
 ```typescript
-interface TableTablet {
+import { TreeTablet, TSDataType } from 'iotdb-client-nodejs';
+
+// Create a tablet
+const tablet = new TreeTablet(
+  'root.test.device1',
+  ['temperature', 'humidity'],
+  [TSDataType.FLOAT, TSDataType.DOUBLE]
+);
+
+// Add rows one at a time using addRow method
+tablet.addRow(Date.now(), [25.5, 60.0]);
+tablet.addRow(Date.now() + 1000, [26.0, 61.5]);
+tablet.addRow(Date.now() + 2000, [26.5, 62.0]);
+
+// Insert the tablet
+await session.insertTablet(tablet);
+```
+
+**Alternative: Plain object approach (still supported)**
+```typescript
+await session.insertTablet({
+  deviceId: 'root.test.device1',
+  measurements: ['temperature', 'humidity'],
+  dataTypes: [TSDataType.FLOAT, TSDataType.DOUBLE],
+  timestamps: [Date.now(), Date.now() + 1000],
+  values: [[25.5, 60.0], [26.0, 61.5]],
+});
+```
+
+#### TableTablet (Table Model / Relational Model)
+
+**Interface (for plain objects):**
+```typescript
+interface ITableTablet {
   tableName: string;          // Table name
-  columnNames: string[];      // All column names (including tag, time, field, attribute)
+  columnNames: string[];      // Column names (excluding timestamp)
   columnTypes: number[];      // TSDataType for each column
   columnCategories: ColumnCategory[];  // Category for each column
   timestamps: number[];       // Array of timestamps
-  values: any[][];           // 2D array: [rows][columns], includes tag values
+  values: any[][];           // 2D array: [rows][columns]
 }
 
 enum ColumnCategory {
@@ -590,6 +625,39 @@ enum ColumnCategory {
   ATTRIBUTE = 2,   // Attribute column - metadata not indexed
   TIME = 3,        // Time column (reserved for internal use, do not use in columnCategories)
 }
+```
+
+**Class (with helper methods):**
+```typescript
+import { TableTablet, ColumnCategory, TSDataType } from 'iotdb-client-nodejs';
+
+// Create a tablet
+const tablet = new TableTablet(
+  'sensor_data',
+  ['device_id', 'temperature', 'humidity'],
+  [TSDataType.TEXT, TSDataType.FLOAT, TSDataType.DOUBLE],
+  [ColumnCategory.TAG, ColumnCategory.FIELD, ColumnCategory.FIELD]
+);
+
+// Add rows one at a time using addRow method
+tablet.addRow(Date.now(), ['device_001', 25.5, 60.0]);
+tablet.addRow(Date.now() + 1000, ['device_002', 26.0, 61.5]);
+tablet.addRow(Date.now() + 2000, ['device_003', 26.5, 62.0]);
+
+// Insert the tablet
+await pool.insertTablet(tablet);
+```
+
+**Alternative: Plain object approach (still supported)**
+```typescript
+await pool.insertTablet({
+  tableName: 'sensor_data',
+  columnNames: ['device_id', 'temperature', 'humidity'],
+  columnTypes: [TSDataType.TEXT, TSDataType.FLOAT, TSDataType.DOUBLE],
+  columnCategories: [ColumnCategory.TAG, ColumnCategory.FIELD, ColumnCategory.FIELD],
+  timestamps: [Date.now(), Date.now() + 1000],
+  values: [['device_001', 25.5, 60.0], ['device_002', 26.0, 61.5]],
+});
 ```
 
 **Note:** TIME is reserved for internal use. When specifying columnCategories in TableTablet, only use TAG, FIELD, and ATTRIBUTE. Timestamps are handled separately via the timestamps array.

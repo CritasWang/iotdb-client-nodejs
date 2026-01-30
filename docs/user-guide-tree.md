@@ -55,12 +55,12 @@ npm install iotdb-client-nodejs
 
 **TypeScript:**
 ```typescript
-import { Session, SessionPool, ConfigBuilder, PoolConfigBuilder } from 'iotdb-client-nodejs';
+import { Session, SessionPool, ConfigBuilder, PoolConfigBuilder, TreeTablet, TSDataType } from 'iotdb-client-nodejs';
 ```
 
 **JavaScript:**
 ```javascript
-const { Session, SessionPool, ConfigBuilder, PoolConfigBuilder } = require('iotdb-client-nodejs');
+const { Session, SessionPool, ConfigBuilder, PoolConfigBuilder, TreeTablet, TSDataType } = require('iotdb-client-nodejs');
 ```
 
 ## 3. Quick Start
@@ -68,7 +68,7 @@ const { Session, SessionPool, ConfigBuilder, PoolConfigBuilder } = require('iotd
 ### 3.1 Basic Session Example
 
 ```typescript
-import { Session } from 'iotdb-client-nodejs';
+import { Session, TreeTablet } from 'iotdb-client-nodejs';
 
 async function quickStart() {
   // Create and open session
@@ -90,14 +90,15 @@ async function quickStart() {
       'CREATE TIMESERIES root.test.device1.temperature WITH DATATYPE=FLOAT, ENCODING=RLE'
     );
     
-    // Insert data using insertTablet
-    await session.insertTablet({
-      deviceId: 'root.test.device1',
-      measurements: ['temperature'],
-      dataTypes: [3], // FLOAT
-      timestamps: [Date.now()],
-      values: [[25.5]],
-    });
+    // Insert data using TreeTablet class with addRow
+    const tablet = new TreeTablet(
+      'root.test.device1',
+      ['temperature'],
+      [3] // FLOAT
+    );
+    tablet.addRow(Date.now(), [25.5]);
+    
+    await session.insertTablet(tablet);
     
     // Query data
     const dataSet = await session.executeQueryStatement(
@@ -300,16 +301,16 @@ await session.executeNonQueryStatement(
 
 #### 4.4.4 Data Insertion
 
-##### `async insertTablet(tablet: Tablet): Promise<void>`
+##### `async insertTablet(tablet: TreeTablet | ITreeTablet): Promise<void>`
 
 Inserts a batch of data points efficiently.
 
 **Parameters:**
-- `tablet`: Tablet object containing device data
+- `tablet`: TreeTablet object or plain object containing device data
 
-**Tablet Interface (TreeTablet):**
+**TreeTablet Interface (for plain objects):**
 ```typescript
-interface TreeTablet {
+interface ITreeTablet {
   deviceId: string;           // Device path (e.g., 'root.test.device1')
   measurements: string[];     // Measurement names
   dataTypes: number[];        // Data type codes (TSDataType - see section 7)
@@ -318,7 +319,27 @@ interface TreeTablet {
 }
 ```
 
-**Example using TSDataType enum:**
+**TreeTablet Class (with helper methods - recommended):**
+```typescript
+import { TreeTablet, TSDataType } from 'iotdb-client-nodejs';
+
+// Create a tablet
+const tablet = new TreeTablet(
+  'root.test.device1',
+  ['temperature', 'humidity', 'status'],
+  [TSDataType.FLOAT, TSDataType.FLOAT, TSDataType.BOOLEAN]
+);
+
+// Add rows one at a time using addRow method
+tablet.addRow(Date.now(), [25.5, 60.0, true]);
+tablet.addRow(Date.now() + 1000, [26.0, 61.5, true]);
+tablet.addRow(Date.now() + 2000, [25.8, 59.5, false]);
+
+// Insert the tablet
+await session.insertTablet(tablet);
+```
+
+**Alternative: Plain object approach (still supported):**
 ```typescript
 import { TSDataType } from 'iotdb-client-nodejs';
 
@@ -357,6 +378,12 @@ await session.insertTablet({
   ],
 });
 ```
+
+**Benefits of TreeTablet class:**
+- ✅ **Convenient**: `addRow()` method simplifies adding data row-by-row
+- ✅ **Type-safe**: Constructor validates parameter lengths
+- ✅ **Validated**: Automatic checking that values match measurements count
+- ✅ **Streaming-friendly**: Easy to add rows as data arrives
 
 ## 5. SessionPool API
 
