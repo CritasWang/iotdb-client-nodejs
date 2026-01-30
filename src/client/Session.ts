@@ -43,6 +43,44 @@ export interface QueryResult {
 
 export { SessionDataSet, RowRecord };
 
+/**
+ * Column category for table model
+ */
+export enum ColumnCategory {
+  ID = 0,
+  TIME = 1,
+  MEASUREMENT = 2,
+  ATTRIBUTE = 3,
+}
+
+/**
+ * Tree model tablet - for timeseries model
+ * Uses deviceId as the full path (e.g., "root.sg.device")
+ */
+export interface TreeTablet {
+  deviceId: string;
+  measurements: string[];
+  dataTypes: number[];
+  timestamps: number[];
+  values: any[][];
+}
+
+/**
+ * Table model tablet - for relational/table model
+ * Uses tableName and includes column categories
+ */
+export interface TableTablet {
+  tableName: string;
+  columnNames: string[];
+  columnTypes: number[];
+  columnCategories: ColumnCategory[];
+  timestamps: number[];
+  values: any[][];
+}
+
+/**
+ * @deprecated Use TreeTablet for tree model or TableTablet for table model instead
+ */
 export interface Tablet {
   deviceId: string;
   measurements: string[];
@@ -240,8 +278,12 @@ export class Session {
     });
   }
 
-  async insertTablet(tablet: Tablet): Promise<void> {
-    logger.debug(`Inserting tablet for device: ${tablet.deviceId}`);
+  /**
+   * Insert tree model tablet (timeseries model)
+   * @param tablet TreeTablet with deviceId, measurements, dataTypes, timestamps, values
+   */
+  async insertTreeTablet(tablet: TreeTablet): Promise<void> {
+    logger.debug(`Inserting tree tablet for device: ${tablet.deviceId}`);
 
     const client = this.connection.getClient();
     const sessionId = this.connection.getSessionId();
@@ -255,7 +297,6 @@ export class Session {
     });
 
     // Serialize timestamps in big-endian format (Java/network standard)
-    // IoTDB expects big-endian byte order for insertTablet operation
     const timestampBuffer = Buffer.alloc(bigIntTimestamps.length * 8);
     bigIntTimestamps.forEach((ts, i) => {
       timestampBuffer.writeBigInt64BE(ts, i * 8);
@@ -265,7 +306,11 @@ export class Session {
       sessionId: sessionId,
       prefixPath: tablet.deviceId,
       measurements: tablet.measurements,
-      values: this.serializeTabletValues(tablet),
+      values: this.serializeTabletValues(
+        tablet.values,
+        tablet.dataTypes,
+        tablet.timestamps.length,
+      ),
       timestamps: timestampBuffer,
       types: tablet.dataTypes,
       size: tablet.timestamps.length,
@@ -289,16 +334,103 @@ export class Session {
     });
   }
 
-  private serializeTabletValues(tablet: Tablet): Buffer {
+  /**
+   * @deprecated Use insertTreeTablet instead for tree model
+   */
+  async insertTablet(tablet: Tablet): Promise<void> {
+    // Convert old format to new TreeTablet format for backward compatibility
+    return this.insertTreeTablet({
+      deviceId: tablet.deviceId,
+      measurements: tablet.measurements,
+      dataTypes: tablet.dataTypes,
+      timestamps: tablet.timestamps,
+      values: tablet.values,
+    });
+  }
+
+  /**
+   * Insert table model tablet (relational model)
+   * @param tablet TableTablet with tableName, columnNames, columnTypes, columnCategories, timestamps, values
+   */
+  async insertTableTablet(tablet: TableTablet): Promise<void> {
+    logger.debug(`Inserting table tablet for table: ${tablet.tableName}`);
+
+    const client = this.connection.getClient();
+    const sessionId = this.connection.getSessionId();
+
+    // Validate timestamps and convert to BigInt
+    const bigIntTimestamps = tablet.timestamps.map((t) => {
+      if (typeof t !== "number" || !Number.isFinite(t)) {
+        throw new Error(`Invalid timestamp: ${t}`);
+      }
+      return BigInt(Math.floor(t));
+    });
+
+    // Serialize timestamps in big-endian format
+    const timestampBuffer = Buffer.alloc(bigIntTimestamps.length * 8);
+    bigIntTimestamps.forEach((ts, i) => {
+      timestampBuffer.writeBigInt64BE(ts, i * 8);
+    });
+
+    // For table model, the measurements are the non-ID and non-TIME columns
+    const measurements: string[] = [];
+    const measurementTypes: number[] = [];
+    
+    tablet.columnNames.forEach((name, i) => {
+      const category = tablet.columnCategories[i];
+      // Include only MEASUREMENT and ATTRIBUTE columns in measurements
+      if (category === ColumnCategory.MEASUREMENT || category === ColumnCategory.ATTRIBUTE) {
+        measurements.push(name);
+        measurementTypes.push(tablet.columnTypes[i]);
+      }
+    });
+
+    const req = new ttypes.TSInsertTabletReq({
+      sessionId: sessionId,
+      prefixPath: tablet.tableName,
+      measurements: measurements,
+      values: this.serializeTabletValues(
+        tablet.values,
+        tablet.columnTypes,
+        tablet.timestamps.length,
+      ),
+      timestamps: timestampBuffer,
+      types: tablet.columnTypes,
+      size: tablet.timestamps.length,
+      isAligned: false,
+    });
+
+    return new Promise((resolve, reject) => {
+      client.insertTablet(req, (err: Error, response: any) => {
+        if (err) {
+          reject(err);
+          return;
+        }
+
+        if (response.code !== 200) {
+          reject(new Error(response.message || "Insert table tablet failed"));
+          return;
+        }
+
+        resolve();
+      });
+    });
+  }
+
+  private serializeTabletValues(
+    values: any[][],
+    dataTypes: number[],
+    rowCount: number,
+  ): Buffer {
     // Serialize tablet values based on data types
     // Format: all columns data, then bitmap for null values
     const buffers: Buffer[] = [];
     const bitMaps: (boolean[] | null)[] = [];
 
     // Serialize each column
-    for (let colIndex = 0; colIndex < tablet.measurements.length; colIndex++) {
-      const dataType = tablet.dataTypes[colIndex];
-      const columnValues = tablet.values.map((row) => row[colIndex]);
+    for (let colIndex = 0; colIndex < dataTypes.length; colIndex++) {
+      const dataType = dataTypes[colIndex];
+      const columnValues = values.map((row) => row[colIndex]);
 
       // Track null values for this column
       const nullBitmap: boolean[] = [];
@@ -320,10 +452,7 @@ export class Session {
     }
 
     // Append bitmap information
-    const bitmapBuffer = this.serializeBitMaps(
-      bitMaps,
-      tablet.timestamps.length,
-    );
+    const bitmapBuffer = this.serializeBitMaps(bitMaps, rowCount);
     buffers.push(bitmapBuffer);
 
     return Buffer.concat(buffers);

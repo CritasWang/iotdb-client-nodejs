@@ -17,7 +17,7 @@
  * under the License.
  */
 
-import { Session } from './Session';
+import { Session, TableTablet } from './Session';
 import { PoolConfig, SQL_DIALECT_TABLE, InternalConfig } from '../utils/Config';
 import { BaseSessionPool } from './BaseSessionPool';
 
@@ -65,7 +65,20 @@ export class TableSessionPool extends BaseSessionPool {
 
     return session;
   }
+
+  /**
+   * Insert table model tablet
+   * @param tablet TableTablet with tableName, columnNames, columnTypes, columnCategories, timestamps, values
+   */
+  async insertTableTablet(tablet: TableTablet): Promise<void> {
+    const session = await this.getSession();
+    try {
+      return await session.insertTableTablet(tablet);
+    } finally {
+      this.releaseSession(session);
+    }
+  }
 }
 
-// Re-export types for backward compatibility
-export type { QueryResult, Tablet } from './Session';
+// Re-export types for backward compatibility and new types
+export type { QueryResult, Tablet, TreeTablet, TableTablet, ColumnCategory } from './Session';
