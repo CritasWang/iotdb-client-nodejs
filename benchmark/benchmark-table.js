@@ -101,6 +101,7 @@ function generateWorkload(testData, config) {
           timestamps: batch.timestamps,
           values: batch.values,
           tableName: config.TABLE_NAME,
+          database: config.DATABASE_NAME,  // Add database name for fully qualified table name
           loopIndex: loopIdx,
         });
       }
@@ -117,6 +118,7 @@ function generateWorkload(testData, config) {
           timestamps: batch.timestamps,
           values: batch.values,
           tableName: config.TABLE_NAME,
+          database: config.DATABASE_NAME,  // Add database name for fully qualified table name
         });
       }
     }
@@ -139,7 +141,7 @@ async function executeWrite(pool, work, session = null) {
   
   // Build column names, types, and categories for table model
   const columnNames = ['device_id', ...work.measurements];
-  const columnTypes = [5, ...work.dataTypes]; // TEXT for device_id, then measurement types
+  const columnTypes = [11, ...work.dataTypes]; // STRING (11) for device_id (TAG must be STRING type), then measurement types
   const columnCategories = [
     ColumnCategory.TAG,  // device_id is a TAG
     ...work.measurements.map(() => ColumnCategory.FIELD)
@@ -151,8 +153,12 @@ async function executeWrite(pool, work, session = null) {
     ...row
   ]);
   
+  // Table name without database prefix (database context set via USE DATABASE)
+  const tableName = work.tableName || 'benchmark_table';
+  const database = work.database || 'benchmark_db';
+  
   const tablet = {
-    tableName: work.tableName || 'benchmark_table',
+    tableName: tableName,  // Simple table name (not database.tableName)
     columnNames: columnNames,
     columnTypes: columnTypes,
     columnCategories: columnCategories,
@@ -160,11 +166,19 @@ async function executeWrite(pool, work, session = null) {
     values: valuesWithDeviceId,
   };
   
-  // Use bound session if provided, otherwise use pool
+  // Use explicit session management to ensure database context
   if (session) {
+    // Bound session - already has database context
     await session.insertTablet(tablet);
   } else {
-    await pool.insertTablet(tablet);
+    // Pool - need to get session and set database context
+    const poolSession = await pool.getSession();
+    try {
+      await poolSession.executeNonQueryStatement(`USE ${database}`);
+      await poolSession.insertTablet(tablet);
+    } finally {
+      pool.releaseSession(poolSession);
+    }
   }
   
   // Return number of data points written

@@ -59,20 +59,27 @@ async function createTreeModelSchema(session, testData, config) {
   const startTime = Date.now();
 
   try {
-    // Create storage group
-    console.log(`Creating storage group: ${config.STORAGE_GROUP_PREFIX}...`);
+    // Delete existing storage group if exists
+    console.log(`Deleting existing storage group: ${config.STORAGE_GROUP_PREFIX}...`);
     try {
       await session.executeNonQueryStatement(
-        `CREATE DATABASE ${config.STORAGE_GROUP_PREFIX}`
+        `DROP DATABASE ${config.STORAGE_GROUP_PREFIX}`
       );
-      console.log('  ✓ Storage group created');
+      console.log('  ✓ Existing storage group deleted');
     } catch (error) {
-      if (error.message && error.message.includes('already exists')) {
-        console.log('  ℹ Storage group already exists, continuing...');
+      if (error.message && (error.message.includes('does not exist') || error.message.includes('not exist'))) {
+        console.log('  ℹ Storage group does not exist, will create new one');
       } else {
-        throw error;
+        console.log(`  ℹ Delete storage group: ${error.message}`);
       }
     }
+
+    // Create storage group
+    console.log(`Creating storage group: ${config.STORAGE_GROUP_PREFIX}...`);
+    await session.executeNonQueryStatement(
+      `CREATE DATABASE ${config.STORAGE_GROUP_PREFIX}`
+    );
+    console.log('  ✓ Storage group created');
 
     // Create timeseries for each device
     console.log(`Creating timeseries for ${testData.devices.length} devices...`);
@@ -129,20 +136,27 @@ async function createTableModelSchema(session, testData, config) {
   const startTime = Date.now();
 
   try {
-    // Create database
-    console.log(`Creating database: ${config.DATABASE_NAME}...`);
+    // Delete existing database if exists
+    console.log(`Deleting existing database: ${config.DATABASE_NAME}...`);
     try {
       await session.executeNonQueryStatement(
-        `CREATE DATABASE ${config.DATABASE_NAME}`
+        `DROP DATABASE ${config.DATABASE_NAME}`
       );
-      console.log('  ✓ Database created');
+      console.log('  ✓ Existing database deleted');
     } catch (error) {
-      if (error.message && error.message.includes('already exists')) {
-        console.log('  ℹ Database already exists, continuing...');
+      if (error.message && (error.message.includes('does not exist') || error.message.includes('not exist'))) {
+        console.log('  ℹ Database does not exist, will create new one');
       } else {
-        throw error;
+        console.log(`  ℹ Delete database: ${error.message}`);
       }
     }
+
+    // Create database
+    console.log(`Creating database: ${config.DATABASE_NAME}...`);
+    await session.executeNonQueryStatement(
+      `CREATE DATABASE ${config.DATABASE_NAME}`
+    );
+    console.log('  ✓ Database created');
 
     // Use database
     await session.executeNonQueryStatement(`USE ${config.DATABASE_NAME}`);
@@ -157,7 +171,7 @@ async function createTableModelSchema(session, testData, config) {
     }
 
     // Build CREATE TABLE statement from device structure
-    const columns = ['device_id STRING ID', 'timestamp TIMESTAMP'];
+    const columns = ['device_id STRING TAG'];  // device_id is TAG for identification
     
     // Add sensor columns from first device (all devices have same structure)
     if (testData.devices && testData.devices.length > 0) {
@@ -166,12 +180,14 @@ async function createTableModelSchema(session, testData, config) {
         const measurementName = device.measurements[i];
         const dataType = device.dataTypes[i];
         const typeString = getDataTypeString(dataType);
-        columns.push(`${measurementName} ${typeString}`);
+        // All sensors are FIELD columns (measurement values)
+        columns.push(`${measurementName} ${typeString} FIELD`);
       }
     }
 
     const createTableSQL = `CREATE TABLE ${config.TABLE_NAME} (${columns.join(', ')})`;
     console.log(`Creating table with ${columns.length} columns...`);
+    console.log(`SQL: ${createTableSQL}`);
     
     await session.executeNonQueryStatement(createTableSQL);
     console.log('  ✓ Table created');

@@ -18,7 +18,12 @@
  */
 
 export { Session, TreeTablet, TableTablet } from "./client/Session";
-export type { QueryResult, Tablet, ITreeTablet, ITableTablet } from "./client/Session";
+export type {
+  QueryResult,
+  Tablet,
+  ITreeTablet,
+  ITableTablet,
+} from "./client/Session";
 export { ColumnCategory } from "./client/Session";
 export { TableSession } from "./client/TableSession";
 export { SessionDataSet } from "./client/SessionDataSet";
@@ -37,3 +42,4 @@ export { logger, LogLevel } from "./utils/Logger";
 export { TSDataType, getDataTypeName } from "./utils/DataTypes";
 export { RedirectException, TSStatusCode } from "./utils/Errors";
 export { RedirectCache } from "./client/RedirectCache";
+export { enableGlobalCleanup } from "./utils/ProcessCleanup";

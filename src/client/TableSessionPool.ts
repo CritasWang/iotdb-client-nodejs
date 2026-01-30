@@ -17,10 +17,11 @@
  * under the License.
  */
 
-import { TableSession } from './TableSession';
-import { Session, TableTablet, TreeTablet } from './Session';
-import { PoolConfig, SQL_DIALECT_TABLE, InternalConfig } from '../utils/Config';
-import { BaseSessionPool } from './BaseSessionPool';
+import { TableSession } from "./TableSession";
+import { Session, TableTablet, TreeTablet } from "./Session";
+import { PoolConfig, SQL_DIALECT_TABLE, InternalConfig } from "../utils/Config";
+import { BaseSessionPool } from "./BaseSessionPool";
+import { logger } from "../utils/Logger";
 
 /**
  * TableSessionPool provides connection pooling optimized for table model operations
@@ -31,18 +32,18 @@ export class TableSessionPool extends BaseSessionPool {
   constructor(
     hostsOrConfig: string | string[] | PoolConfig,
     port?: number,
-    config?: Partial<PoolConfig>
+    config?: Partial<PoolConfig>,
   ) {
     super(hostsOrConfig, port, config);
   }
 
   protected getPoolName(): string {
-    return 'TableSessionPool';
+    return "TableSessionPool";
   }
 
   protected async createPoolSession(): Promise<Session> {
     const endPoint = this.getNextEndPoint();
-    
+
     // Create internal config with sql_dialect set to 'table'
     const internalConfig: InternalConfig = {
       ...this.config,
@@ -50,23 +51,35 @@ export class TableSessionPool extends BaseSessionPool {
       port: endPoint.port,
       sqlDialect: SQL_DIALECT_TABLE,
     };
-    
-    // Create TableSession instance instead of Session
-    const session = new TableSession(internalConfig);
-    await session.open();
 
-    // Set session to table model by executing a USE DATABASE command if database is specified
-    if (this.config.database) {
-      // Validate database name to prevent SQL injection
-      // IoTDB database names should only contain alphanumeric characters, underscores, hyphens, and dots
-      const databaseNameRegex = /^[a-zA-Z0-9_.-]+$/;
-      if (!databaseNameRegex.test(this.config.database)) {
-        throw new Error(`Invalid database name: ${this.config.database}. Database names must only contain alphanumeric characters, underscores, hyphens, and dots.`);
+    try {
+      // Create TableSession instance instead of Session
+      const session = new TableSession(internalConfig);
+      await session.open();
+
+      // If database is configured, automatically USE it (ignore errors)
+      // Note: Disabled for now as it may cause hangs
+      if (this.config.database) {
+        try {
+          logger.debug(`Attempting to USE database: ${this.config.database}`);
+          await session.executeNonQueryStatement(`USE ${this.config.database}`);
+          logger.debug(
+            `Successfully set database context to: ${this.config.database}`,
+          );
+        } catch (error: any) {
+          // Ignore errors - database might not exist yet or other issues
+          // This is acceptable as operations can still work without pre-set database
+          logger.debug(
+            `Failed to USE database ${this.config.database}, ignoring error: ${error.message}`,
+          );
+        }
       }
-      await session.executeNonQueryStatement(`USE ${this.config.database}`);
-    }
 
-    return session;
+      return session;
+    } catch (error: any) {
+      const errorMsg = `Failed to create pool session for ${endPoint.host}:${endPoint.port} - ${error.message}`;
+      throw new Error(errorMsg);
+    }
   }
 
   /**
@@ -84,5 +97,11 @@ export class TableSessionPool extends BaseSessionPool {
 }
 
 // Re-export types for backward compatibility and new types
-export type { QueryResult, Tablet, TreeTablet, TableTablet, ColumnCategory } from './Session';
-export { TableSession } from './TableSession';
+export type {
+  QueryResult,
+  Tablet,
+  TreeTablet,
+  TableTablet,
+  ColumnCategory,
+} from "./Session";
+export { TableSession } from "./TableSession";

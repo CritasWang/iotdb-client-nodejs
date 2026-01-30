@@ -54,6 +54,11 @@ describe("Table Model All Data Types E2E Tests", () => {
       console.warn(
         "Set IOTDB_HOST, IOTDB_PORT to run E2E tests against a real instance.",
       );
+      try {
+        await pool.close();
+      } catch {
+        // Ignore cleanup errors
+      }
     }
   }, 60000);
 
@@ -220,7 +225,7 @@ describe("Table Model All Data Types E2E Tests", () => {
       rows.push(row);
     }
     await dataSet.close();
-    
+
     expect(rows.length).toBeGreaterThanOrEqual(3);
 
     console.log(`Retrieved ${rows.length} rows from table model`);
@@ -275,7 +280,7 @@ describe("Table Model All Data Types E2E Tests", () => {
       countRows.push(row);
     }
     await countDataSet.close();
-    
+
     expect(countRows.length).toBeGreaterThan(0);
     console.log("COUNT result:", countRows[0]);
 
@@ -289,7 +294,7 @@ describe("Table Model All Data Types E2E Tests", () => {
       aggRows.push(row);
     }
     await aggDataSet.close();
-    
+
     expect(aggRows.length).toBeGreaterThan(0);
     console.log("Aggregation result:", aggRows[0]);
   }, 60000);
@@ -313,7 +318,7 @@ describe("Table Model All Data Types E2E Tests", () => {
       rows.push(row);
     }
     await dataSet.close();
-    
+
     console.log(`Time-based query returned ${rows.length} rows`);
   }, 60000);
 
@@ -432,7 +437,7 @@ describe("Table Model All Data Types E2E Tests", () => {
       rows.push(row);
     }
     await dataSet.close();
-    
+
     expect(rows.length).toBeGreaterThan(0);
     console.log("Batch insert verified");
   }, 60000);
