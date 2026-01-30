@@ -55,7 +55,7 @@ function getDataTypeString(dataType) {
  * @param {Object} config - Configuration object
  */
 async function createTreeModelSchema(session, testData, config) {
-  console.log('\n=== Creating Tree Model Schema ===');
+  console.log('\n=== Creating Tree Model Schema (Using Device Template) ===');
   const startTime = Date.now();
 
   try {
@@ -81,43 +81,59 @@ async function createTreeModelSchema(session, testData, config) {
     );
     console.log('  ✓ Storage group created');
 
-    // Create timeseries for each device
-    console.log(`Creating timeseries for ${testData.devices.length} devices...`);
-    let timeseriesCreated = 0;
+    // Use device template for fast schema creation
+    const templateName = 'benchmark_template';
+    
+    // Step 1: Drop existing template if exists
+    console.log(`Dropping existing device template: ${templateName}...`);
+    try {
+      await session.executeNonQueryStatement(
+        `DROP DEVICE TEMPLATE ${templateName}`
+      );
+      console.log('  ✓ Existing template dropped');
+    } catch (error) {
+      console.log('  ℹ Template does not exist, will create new one');
+    }
 
-    for (const device of testData.devices) {
+    // Step 2: Create device template with measurements from first device
+    // All devices have same structure in benchmark
+    if (testData.devices && testData.devices.length > 0) {
+      const device = testData.devices[0];
+      
+      // Build template creation SQL
+      const measurements = [];
       for (let i = 0; i < device.measurements.length; i++) {
         const measurement = device.measurements[i];
         const dataType = device.dataTypes[i];
         const typeString = getDataTypeString(dataType);
-        
-        const timeseriesPath = `${device.deviceId}.${measurement}`;
-        
-        try {
-          await session.executeNonQueryStatement(
-            `CREATE TIMESERIES ${timeseriesPath} WITH DATATYPE=${typeString}`
-          );
-          timeseriesCreated++;
-        } catch (error) {
-          if (error.message && error.message.includes('already exists')) {
-            // Ignore already exists errors during schema creation
-            timeseriesCreated++;
-          } else {
-            console.error(`  ✗ Failed to create timeseries ${timeseriesPath}:`, error.message);
-          }
-        }
+        measurements.push(`${measurement} ${typeString}`);
       }
+      
+      const createTemplateSQL = `CREATE DEVICE TEMPLATE ${templateName} (${measurements.join(', ')})`;
+      console.log(`Creating device template with ${device.measurements.length} measurements...`);
+      console.log(`SQL: ${createTemplateSQL}`);
+      
+      await session.executeNonQueryStatement(createTemplateSQL);
+      console.log('  ✓ Device template created');
 
-      // Progress update
-      const progress = ((testData.devices.indexOf(device) + 1) / testData.devices.length * 100).toFixed(1);
-      if ((testData.devices.indexOf(device) + 1) % 10 === 0 || testData.devices.indexOf(device) === testData.devices.length - 1) {
-        console.log(`  Progress: ${progress}% (${timeseriesCreated} timeseries)`);
-      }
+      // Step 3: Set template to storage group
+      console.log(`Setting template to storage group: ${config.STORAGE_GROUP_PREFIX}...`);
+      await session.executeNonQueryStatement(
+        `SET DEVICE TEMPLATE ${templateName} TO ${config.STORAGE_GROUP_PREFIX}`
+      );
+      console.log('  ✓ Template set to storage group');
+
+      // Step 4: Template will be auto-activated when data is inserted
+      // No need to manually activate for each device
+      console.log(`Template will be auto-activated for ${testData.devices.length} devices on first insert`);
+
+      const duration = Date.now() - startTime;
+      console.log(`\n✓ Schema creation completed in ${(duration / 1000).toFixed(2)}s`);
+      console.log(`  Using device template for ${testData.devices.length} devices`);
+      console.log(`  Total measurements per device: ${device.measurements.length}`);
+    } else {
+      throw new Error('No devices in test data');
     }
-
-    const duration = Date.now() - startTime;
-    console.log(`\n✓ Schema creation completed in ${(duration / 1000).toFixed(2)}s`);
-    console.log(`  Total timeseries: ${timeseriesCreated}`);
     
   } catch (error) {
     console.error('✗ Schema creation failed:', error);
