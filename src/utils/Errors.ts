@@ -47,15 +47,9 @@ export class RedirectException extends Error {
     status: any,
     deviceId: string,
   ): RedirectException | null {
-    // Check for REDIRECTION_RECOMMEND status code
-    // Java client uses 531 for REDIRECTION_RECOMMEND
-    // Also check for 301/302 which are HTTP redirect codes that might be used
-    if (
-      (status.code === 531 ||
-        status.code === 301 ||
-        status.code === 302) &&
-      status.redirectNode
-    ) {
+    // Check for REDIRECTION_RECOMMEND status code (400 in Java client)
+    // AND check if redirectNode is set in the response
+    if (status.code === 400 && status.redirectNode) {
       return new RedirectException(
         deviceId,
         {
@@ -72,6 +66,7 @@ export class RedirectException extends Error {
 /**
  * TSStatus codes from Apache IoTDB
  * Reference: org.apache.iotdb.rpc.TSStatusCode
+ * https://github.com/apache/iotdb/blob/master/iotdb-client/service-rpc/src/main/java/org/apache/iotdb/rpc/TSStatusCode.java
  */
 export enum TSStatusCode {
   SUCCESS_STATUS = 200,
@@ -79,7 +74,8 @@ export enum TSStatusCode {
   INVALID_HANDLE_STATUS = 202,
   INCOMPATIBLE_VERSION = 203,
 
-  REDIRECTION_RECOMMEND = 531,
+  // Client status codes
+  REDIRECTION_RECOMMEND = 400,
 
   // Error codes
   INTERNAL_SERVER_ERROR = 500,
