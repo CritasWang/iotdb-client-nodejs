@@ -213,13 +213,6 @@ export abstract class BaseSessionPool {
     return session;
   }
 
-  /**
-   * Check if an error is a redirect exception
-   */
-  protected isRedirectError(error: any): boolean {
-    return error instanceof RedirectException || error.name === 'RedirectException';
-  }
-
 
   /**
    * Get a session from the pool
@@ -359,79 +352,42 @@ export abstract class BaseSessionPool {
   async insertTablet(
     tablet: TreeTablet | ITreeTablet | TableTablet | ITableTablet,
   ): Promise<void> {
-    // If redirection is disabled, use simple approach
-    if (!this.config.enableRedirection) {
-      const session = await this.getSession();
-      try {
-        return await session.insertTablet(tablet);
-      } finally {
-        this.releaseSession(session);
-      }
-    }
-
-    // Redirection-aware implementation
     const deviceId = this.extractDeviceId(tablet);
-    let retryCount = 0;
-    const maxRetries = this.config.maxRedirectRetries || 3;
-
-    while (retryCount <= maxRetries) {
-      try {
-        // Check cache for optimal endpoint
-        const cachedEndpoint = this.redirectCache.get(deviceId);
-        let session: Session;
-
-        if (cachedEndpoint) {
-          // Use cached endpoint
-          session = await this.getSessionForEndpoint(cachedEndpoint);
-        } else {
-          // Use round-robin selection
-          session = await this.getSession();
-        }
-
-        try {
-          // Attempt insert
-          await session.insertTablet(tablet);
-          
-          // Success - release session
-          this.releaseSession(session);
-          return;
-
-        } catch (error: any) {
-          // Always release session before handling error
-          this.releaseSession(session);
-
-          // Check if this is a redirect error
-          if (this.isRedirectError(error)) {
-            const redirectError = error as RedirectException;
-            
-            logger.info(
-              `Redirect: ${deviceId} -> ${redirectError.endpoint.host}:${redirectError.endpoint.port} (attempt ${retryCount + 1}/${maxRetries + 1})`
-            );
-            
-            // Cache the endpoint and retry
-            this.redirectCache.set(deviceId, redirectError.endpoint);
-            retryCount++;
-            
-            if (retryCount > maxRetries) {
-              throw new Error(
-                `Max redirect retries (${maxRetries}) exceeded for ${deviceId}`
-              );
-            }
-            
-            // Continue to next iteration (retry)
-            continue;
-          }
-
-          // Not a redirect error - rethrow
-          throw error;
-        }
-
-      } catch (error: any) {
-        // If we've exhausted retries or it's not a redirect, throw
-        if (retryCount > maxRetries || !this.isRedirectError(error)) {
-          throw error;
+    
+    // Check cache for optimal endpoint if redirection is enabled
+    const cachedEndpoint = this.config.enableRedirection 
+      ? this.redirectCache.get(deviceId)
+      : null;
+    
+    let session: Session;
+    
+    if (cachedEndpoint) {
+      // Use cached endpoint for optimal routing
+      session = await this.getSessionForEndpoint(cachedEndpoint);
+    } else {
+      // Use round-robin selection
+      session = await this.getSession();
+    }
+    
+    try {
+      // Attempt insert
+      await session.insertTablet(tablet);
+      
+      // Check if server recommended a redirect for future operations
+      if (this.config.enableRedirection) {
+        const redirectEndpoint = session.getAndClearLastRedirect();
+        if (redirectEndpoint) {
+          // Cache the recommended endpoint for future writes
+          this.redirectCache.set(deviceId, redirectEndpoint);
+          logger.info(
+            `Cached redirect recommendation: ${deviceId} -> ${redirectEndpoint.host}:${redirectEndpoint.port}`
+          );
         }
       }
+      
+    } finally {
+      // Always release session
+      this.releaseSession(session);
     }
   }
 

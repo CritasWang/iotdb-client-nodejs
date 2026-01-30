@@ -405,7 +405,6 @@ const treePool = new SessionPool({
   password: 'root',
   maxPoolSize: 10,
   enableRedirection: true,        // Enable redirection (default: true)
-  maxRedirectRetries: 3,          // Max redirect retries (default: 3)
   redirectCacheTTL: 300000,       // Cache TTL in ms (default: 5 minutes)
 });
 
@@ -419,7 +418,7 @@ const tablePool = new TableSessionPool({
 **How It Works:**
 
 ```typescript
-// First write to a device - may trigger redirect
+// First write to a device - server returns redirect recommendation
 const tablet = {
   deviceId: 'root.sg.device1',
   measurements: ['temperature'],
@@ -430,10 +429,9 @@ const tablet = {
 
 await pool.insertTablet(tablet);
 // → Writes to Node A (via round-robin)
-// → Server responds: "Please use Node B for this device"
-// → Client caches: device1 → Node B
-// → Client retries write on Node B
-// → Success!
+// → Write succeeds!
+// → Server responds with code 400: "Recommend using Node B for this device in the future"
+// → Client caches: device1 → Node B (for next write)
 
 // Second write to same device - uses cached endpoint
 await pool.insertTablet({

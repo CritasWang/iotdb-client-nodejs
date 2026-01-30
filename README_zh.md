@@ -405,7 +405,6 @@ const treePool = new SessionPool({
   password: 'root',
   maxPoolSize: 10,
   enableRedirection: true,        // 启用重定向（默认：true）
-  maxRedirectRetries: 3,          // 最大重定向重试次数（默认：3）
   redirectCacheTTL: 300000,       // 缓存 TTL（毫秒）（默认：5 分钟）
 });
 
@@ -419,7 +418,7 @@ const tablePool = new TableSessionPool({
 **工作原理：**
 
 ```typescript
-// 第一次写入设备 - 可能触发重定向
+// 第一次写入设备 - 服务器返回重定向建议
 const tablet = {
   deviceId: 'root.sg.device1',
   measurements: ['temperature'],
@@ -430,10 +429,9 @@ const tablet = {
 
 await pool.insertTablet(tablet);
 // → 写入到节点 A（通过轮询）
-// → 服务器响应："请使用节点 B 处理此设备"
-// → 客户端缓存：device1 → 节点 B
-// → 客户端在节点 B 上重试写入
-// → 成功！
+// → 写入成功！
+// → 服务器响应代码 400："建议未来使用节点 B 处理此设备"
+// → 客户端缓存：device1 → 节点 B（为下次写入做准备）
 
 // 第二次写入同一设备 - 使用缓存的端点
 await pool.insertTablet({

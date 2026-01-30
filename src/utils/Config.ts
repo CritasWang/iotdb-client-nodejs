@@ -86,13 +86,6 @@ export interface PoolConfig extends Config {
    */
   enableRedirection?: boolean;
   /**
-   * Maximum redirect retry attempts before failing.
-   * Prevents infinite redirect loops.
-   * 
-   * @default 3
-   */
-  maxRedirectRetries?: number;
-  /**
    * Time-to-live for cached redirect mappings (milliseconds).
    * Set to 0 for no expiration.
    * Recommended: 300000 (5 minutes)
@@ -118,7 +111,6 @@ export const DEFAULT_POOL_CONFIG: Partial<PoolConfig> = {
   maxIdleTime: 60000, // 60 seconds
   waitTimeout: 60000, // 60 seconds
   enableRedirection: true,
-  maxRedirectRetries: 3,
   redirectCacheTTL: 300000, // 5 minutes
 };
 

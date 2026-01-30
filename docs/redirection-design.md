@@ -37,20 +37,20 @@ The client should:
 
 - **Configuration** (`src/utils/Config.ts`):
   - `enableRedirection`: Enable/disable redirection (default: true)
-  - `maxRedirectRetries`: Max retry attempts (default: 3)
   - `redirectCacheTTL`: Cache TTL in milliseconds (default: 300000 / 5 minutes)
 
 - **Session Layer** (`src/client/Session.ts`):
-  - `insertTreeTabletInternal()`: Throws RedirectException on code 400 responses
-  - `insertTableTabletInternal()`: Throws RedirectException on code 400 responses
-  - Proper extraction of redirect endpoint from Thrift response
+  - `insertTreeTabletInternal()`: Stores redirect recommendation on code 400 responses
+  - `insertTableTabletInternal()`: Stores redirect recommendation on code 400 responses
+  - `getAndClearLastRedirect()`: Returns and clears stored redirect recommendation
+  - Resolves successfully after code 400 (write already succeeded)
 
 - **Pool Layer** (`src/client/BaseSessionPool.ts`):
   - RedirectCache instance initialization
   - Endpoint-to-session mapping for redirect endpoints
   - `getSessionForEndpoint()`: Get/create session for specific endpoint
   - `extractDeviceId()`: Extract device ID from tree/table tablets
-  - `insertTablet()`: Automatic redirect handling with retry logic
+  - `insertTablet()`: Check for redirect recommendations after successful writes and cache them
   - Configurable redirection behavior (can be disabled)
 
 - **Testing**:
@@ -63,23 +63,21 @@ The client should:
 
 When a multi-node IoTDB cluster returns status code 400 (REDIRECTION_RECOMMEND):
 
-1. **Write Operation**: Initially sent to round-robin selected node
-2. **Server Response**: Returns code 400 with redirectNode endpoint
+1. **Write Operation**: Sent to round-robin selected node (or cached optimal node)
+2. **Server Response**: Write succeeds, returns code 400 with recommended endpoint for future operations
 3. **Client Handling**:
-   - Session throws RedirectException with endpoint information
-   - Pool catches the exception
-   - Cache stores device→endpoint mapping
-   - Pool creates/retrieves session for redirect endpoint
-   - Operation retries on correct node
-   - Success!
-4. **Future Operations**: Automatically use cached endpoint (no redirect needed)
+   - Session stores redirect recommendation internally
+   - Session resolves successfully (write already completed)
+   - Pool checks for redirect recommendation after successful write
+   - Pool caches device→endpoint mapping for future operations
+4. **Future Operations**: Automatically use cached endpoint (write directly to optimal node)
 
 This behavior ensures:
-- ✅ Write operations complete successfully
-- ✅ Automatic optimization for future operations
+- ✅ Write operations complete successfully on first attempt
+- ✅ Automatic optimization for future operations through caching
 - ✅ Configurable redirect behavior
-- ✅ Prevents infinite redirect loops (max retries)
-- ✅ Performance improvement through caching
+- ✅ No unnecessary retries (write already succeeded)
+- ✅ Performance improvement through intelligent routing
 
 ## Detailed Design
 
@@ -139,77 +137,65 @@ interface TEndPoint {
 ┌─────────────────────────────────────────────────────────┐
 │ Check TSStatus.code                                     │
 │   - code === 200? → Success, return                     │
-│   - code === 400 AND redirectNode? → RedirectException  │
+│   - code === 400 AND redirectNode?                      │
+│     → Store redirect recommendation, return success     │
 │   - Other? → Error                                      │
 └─────────────────────────────────────────────────────────┘
                          ↓
 ┌─────────────────────────────────────────────────────────┐
-│ Catch RedirectException in SessionPool                  │
-│   1. Cache: deviceId → endpoint                         │
-│   2. Get/create connection to endpoint                  │
-│   3. Retry: insertTablet() with correct connection      │
+│ SessionPool: Check for redirect recommendation          │
+│   - If present: Cache deviceId → endpoint               │
+│   - Future writes will use cached endpoint              │
 └─────────────────────────────────────────────────────────┘
 ```
 
 ### 4. Implementation Strategy
 
-#### Phase 1: Single Device Support (Recommended First Step)
+#### Phase 1: Single Device Support (Actual Implementation)
 
-Implement basic redirection for single-device operations:
+The implemented approach for single-device operations:
 
 ```typescript
 // In SessionPool
 async insertTablet(tablet: TreeTablet | TableTablet): Promise<void> {
   const deviceId = this.extractDeviceId(tablet);
-  let retryCount = 0;
   
-  while (retryCount <= this.config.maxRedirectRetries!) {
-    try {
-      // Check cache
-      const cachedEndpoint = this.config.enableRedirection
-        ? this.redirectCache.get(deviceId)
-        : null;
-      
-      // Get session (cached endpoint or round-robin)
-      const session = cachedEndpoint
-        ? await this.getSessionForEndpoint(cachedEndpoint)
-        : await this.getSession();
-      
-      try {
-        // Attempt insert
-        await session.insertTablet(tablet);
-        
-        // Success - release session
-        if (!cachedEndpoint) {
-          this.releaseSession(session);
-        }
-        return;
-        
-      } catch (error: any) {
-        // Check if this is a redirect
-        if (this.isRedirectError(error)) {
-          const endpoint = this.extractRedirectEndpoint(error);
-          if (endpoint) {
-            logger.info(`Redirect: ${deviceId} → ${endpoint.host}:${endpoint.port}`);
-            
-            // Cache and retry
-            this.redirectCache.set(deviceId, endpoint);
-            retryCount++;
-            continue;
-          }
-        }
-        
-        // Not a redirect - rethrow
-        throw error;
+  // Check cache for optimal endpoint if redirection is enabled
+  const cachedEndpoint = this.config.enableRedirection 
+    ? this.redirectCache.get(deviceId)
+    : null;
+  
+  let session: Session;
+  
+  if (cachedEndpoint) {
+    // Use cached endpoint for optimal routing
+    session = await this.getSessionForEndpoint(cachedEndpoint);
+  } else {
+    // Use round-robin selection
+    session = await this.getSession();
+  }
+  
+  try {
+    // Attempt insert
+    await session.insertTablet(tablet);
+    
+    // Check if server recommended a redirect for future operations
+    if (this.config.enableRedirection) {
+      const redirectEndpoint = session.getAndClearLastRedirect();
+      if (redirectEndpoint) {
+        // Cache the recommended endpoint for future writes
+        this.redirectCache.set(deviceId, redirectEndpoint);
+        logger.info(
+          `Cached redirect recommendation: ${deviceId} -> ${redirectEndpoint.host}:${redirectEndpoint.port}`
+        );
       }
-      
-    } catch (error) {
-      // Max retries exceeded or other error
-      if (retryCount >= this.config.maxRedirectRetries!) {
-        throw new Error(`Max redirect retries exceeded for ${deviceId}`);
-      }
-      throw error;
     }
+    
+  } finally {
+    // Always release session
+    this.releaseSession(session);
+  }
+}
   }
 }
 ```
@@ -253,14 +239,16 @@ private async insertTreeTabletInternal(tablet: TreeTablet): Promise<void> {
         return;
       }
       
-      // Check response status
+      // Handle redirection recommendation (code 400)
+      // Note: Code 400 means write SUCCEEDED but server recommends a different endpoint for future operations
       if (response.code === 400 && response.redirectNode) {
-        // Create redirect error with proper structure
-        const redirectError: any = new Error('REDIRECTION_RECOMMEND');
-        redirectError.code = 400;
-        redirectError.redirectNode = response.redirectNode;
-        redirectError.deviceId = tablet.deviceId;
-        reject(redirectError);
+        // Store redirect recommendation for pool to cache
+        this.lastRedirectEndpoint = {
+          host: response.redirectNode.internalIp || response.redirectNode.ip,
+          port: response.redirectNode.port,
+        };
+        // Resolve successfully - the write already succeeded
+        resolve();
         return;
       }
       
@@ -353,14 +341,6 @@ interface PoolConfig {
   enableRedirection?: boolean;
   
   /**
-   * Maximum redirect retry attempts before failing.
-   * Prevents infinite redirect loops.
-   * 
-   * @default 3
-   */
-  maxRedirectRetries?: number;
-  
-  /**
    * Time-to-live for cached redirect mappings (milliseconds).
    * Set to 0 for no expiration.
    * Recommended: 300000 (5 minutes)
@@ -373,13 +353,10 @@ interface PoolConfig {
 
 ### 8. Error Handling
 
+Since code 400 responses indicate successful writes with redirect recommendations (not errors), the error handling is simplified:
+
 ```typescript
-// Redirect-specific errors
-class MaxRedirectRetriesExceededError extends Error {
-  constructor(deviceId: string, retries: number) {
-    super(`Max redirect retries (${retries}) exceeded for device: ${deviceId}`);
-  }
-}
+// Standard error handling - redirect recommendations are not errors
 
 class RedirectLoopDetectedError extends Error {
   constructor(deviceId: string, endpoints: EndPoint[]) {
@@ -490,10 +467,10 @@ await pool.insertTablet({
   values: [[25.5]],
 });
 // → Round-robin to Node A
-// → Server: "Use Node B"
+// → Write to Node A (round-robin)
+// → Write succeeds!
+// → Server responds with code 400: "Recommend Node B for future writes"
 // → Cache: device1 → Node B
-// → Retry on Node B
-// → Success!
 
 // Second write - uses cache
 await pool.insertTablet({
@@ -505,7 +482,7 @@ await pool.insertTablet({
 });
 // → Check cache: device1 → Node B
 // → Write directly to Node B
-// → No redirect!
+// → No redirect needed!
 
 await pool.close();
 ```
@@ -524,7 +501,6 @@ await pool.close();
 
 **Configuration Recommendations:**
 - `enableRedirection: true` (default) - Safe to leave enabled
-- `maxRedirectRetries: 3` (default) - Prevents infinite loops
 - `redirectCacheTTL: 300000` (5 min default) - Balance between freshness and performance
 - `maxPoolSize: 20+` - Higher values support more redirect endpoints
 
