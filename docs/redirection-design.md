@@ -31,15 +31,40 @@ The client should:
 ### ✅ Completed Foundation
 - `src/utils/Errors.ts`: RedirectException class with proper status code (400)
 - `src/client/RedirectCache.ts`: LRU cache with TTL for device→endpoint mappings
-- `src/utils/Config.ts`: Configuration options (enableRedirection, maxRedirectRetries, redirectCacheTTL)
-- Comprehensive unit tests (77 tests, all passing)
+- **Code 400 Handling**: Session.insertTablet() methods now handle code 400 responses correctly
+  - **Important**: Code 400 means the write operation **succeeded** but the server recommends a better endpoint for future operations
+  - Current behavior: Log warning with recommended endpoint and resolve successfully (no error thrown)
+  - Warning messages guide users about the recommendation and note that automatic redirection is not yet implemented
+- Comprehensive unit tests for foundation classes
 
 ### ❌ Not Yet Implemented
-- Integration with Session.insertTablet()
-- Integration with SessionPool.insertTablet()
+- Automatic redirection: Caching device→endpoint mappings and routing future writes
+- Configuration options in `src/utils/Config.ts` (removed until runtime integration is complete)
+- Integration with SessionPool.insertTablet() for automatic retry with correct endpoint
 - Multi-device redirect handling
 - Batch operation support
 - Real cluster testing and validation
+
+### 🔍 Current Behavior with Code 400
+
+When a multi-node IoTDB cluster returns status code 400 (REDIRECTION_RECOMMEND):
+
+1. **Write Operation**: Succeeds on the current node (data is written)
+2. **Client Response**: Logs warning messages:
+   ```
+   [WARN] Server recommends redirection for table <name> (code 400). Write succeeded but future operations may benefit from using a different endpoint.
+   [WARN] Recommended endpoint: 192.168.1.100:6667
+   [WARN] Client-side redirection is not yet implemented. See docs/redirection-design.md for future implementation plans.
+   ```
+3. **Operation Result**: Resolves successfully (Promise resolves, no error thrown)
+4. **Future Operations**: Continue using the current connection (no automatic optimization)
+
+This behavior ensures:
+- ✅ Write operations complete successfully
+- ✅ Users are informed about suboptimal routing via logs
+- ✅ No breaking changes to application logic
+- ❌ Performance may be suboptimal (data forwarding between nodes)
+- ❌ No automatic optimization for future operations
 
 ## Detailed Design
 

@@ -434,13 +434,16 @@ export class Session {
           return;
         }
 
-        // Special handling for redirection response (code 400)
+        // Handle redirection recommendation (code 400)
+        // Note: Code 400 means write succeeded but server recommends a better endpoint for future operations
         if (response.code === 400) {
-          reject(new Error(
-            "Server requested redirection (code 400), but client-side redirection is not yet implemented. " +
-            "Please use a single-node IoTDB deployment or consider using the Java client for multi-node clusters with automatic redirection support. " +
-            (response.redirectNode ? `Suggested endpoint: ${response.redirectNode.ip || response.redirectNode.internalIp}:${response.redirectNode.port}` : "")
-          ));
+          logger.warn(`Server recommends redirection (code 400). Write succeeded but future operations may benefit from using a different endpoint.`);
+          if (response.redirectNode) {
+            logger.warn(`Recommended endpoint: ${response.redirectNode.ip || response.redirectNode.internalIp}:${response.redirectNode.port}`);
+          }
+          logger.warn(`Client-side redirection is not yet implemented. See docs/redirection-design.md for future implementation plans.`);
+          // Resolve successfully since the write operation completed
+          resolve();
           return;
         }
 
@@ -518,17 +521,16 @@ export class Session {
           return;
         }
 
-        // Special handling for redirection response (code 400)
+        // Handle redirection recommendation (code 400)
+        // Note: Code 400 means write succeeded but server recommends a better endpoint for future operations
         if (response.code === 400) {
-          logger.warn(`Server requested redirection for table ${tablet.tableName}: code=400`);
+          logger.warn(`Server recommends redirection for table ${tablet.tableName} (code 400). Write succeeded but future operations may benefit from using a different endpoint.`);
           if (response.redirectNode) {
-            logger.warn(`Suggested endpoint: ${response.redirectNode.ip || response.redirectNode.internalIp}:${response.redirectNode.port}`);
+            logger.warn(`Recommended endpoint: ${response.redirectNode.ip || response.redirectNode.internalIp}:${response.redirectNode.port}`);
           }
-          reject(new Error(
-            "Server requested redirection (code 400), but client-side redirection is not yet implemented. " +
-            "Please use a single-node IoTDB deployment or consider using the Java client for multi-node clusters with automatic redirection support. " +
-            (response.redirectNode ? `Suggested endpoint: ${response.redirectNode.ip || response.redirectNode.internalIp}:${response.redirectNode.port}` : "")
-          ));
+          logger.warn(`Client-side redirection is not yet implemented. See docs/redirection-design.md for future implementation plans.`);
+          // Resolve successfully since the write operation completed
+          resolve();
           return;
         }
 
