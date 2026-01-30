@@ -87,8 +87,9 @@ console.log('All rows:', allRows);
 const customDataSet = await session.executeQueryStatement('SELECT * FROM root.test.**', 30000);
 // ... iterate and close
 
-// Insert tree tablet data (tree/timeseries model)
-await session.insertTreeTablet({
+// Insert tablet data (supports both tree and table models)
+// Tree model example:
+await session.insertTablet({
   deviceId: 'root.test.device1',
   measurements: ['temperature', 'humidity'],
   dataTypes: [3, 3], // FLOAT
@@ -561,6 +562,38 @@ interface PoolConfig extends Config {
 
 #### Tablet
 ```typescript
+#### TreeTablet (Tree Model / Timeseries Model)
+```typescript
+interface TreeTablet {
+  deviceId: string;           // Full path like "root.test.device1"
+  measurements: string[];     // Sensor names
+  dataTypes: number[];        // TSDataType for each measurement
+  timestamps: number[];       // Array of timestamps
+  values: any[][];           // 2D array: [rows][columns]
+}
+```
+
+#### TableTablet (Table Model / Relational Model)
+```typescript
+interface TableTablet {
+  tableName: string;          // Table name
+  columnNames: string[];      // All column names (including tag, time, field, attribute)
+  columnTypes: number[];      // TSDataType for each column
+  columnCategories: ColumnCategory[];  // Category for each column
+  timestamps: number[];       // Array of timestamps
+  values: any[][];           // 2D array: [rows][columns], includes tag values
+}
+
+enum ColumnCategory {
+  TAG = 0,         // Tag column - for device identification
+  FIELD = 1,       // Field column - measurement values
+  ATTRIBUTE = 2,   // Attribute column - device attributes
+  TIME = 3,        // Time column
+}
+```
+
+#### Deprecated Tablet (for backward compatibility)
+```typescript
 interface Tablet {
   deviceId: string;
   measurements: string[];
@@ -568,6 +601,8 @@ interface Tablet {
   timestamps: number[];
   values: any[][];
 }
+// Note: Use TreeTablet instead
+```
 ```
 
 #### QueryResult
@@ -753,6 +788,33 @@ The IoTDB Node.js client follows a three-layer architecture design, optimized fo
 #### 4. Configuration System (`src/utils/Config.ts`)
 - Builder pattern for fluent configuration
 - Support for both old (host/port) and new (nodeUrls) formats
+
+#### 5. Tablet Type System
+
+The client provides distinct tablet types for tree and table models:
+
+**TreeTablet** (Timeseries Model):
+- `deviceId`: Full path (e.g., "root.sg.device")
+- `measurements`: Sensor names
+- `dataTypes`: Type for each measurement
+- `timestamps` and `values`: Time-series data
+
+**TableTablet** (Relational Model):
+- `tableName`: Table name (not a path)
+- `columnNames`: All columns including tags, time, fields, attributes
+- `columnTypes`: Type for each column
+- `columnCategories`: Category (TAG, TIME, FIELD, ATTRIBUTE) for each column
+- `timestamps` and `values`: Includes tag values in data
+
+**Polymorphic insertTablet():**
+Both `Session` and `TableSession` use the same method name with runtime type dispatch:
+```typescript
+// Works with TreeTablet
+await session.insertTablet({ deviceId: '...', measurements: [...], ...});
+
+// Works with TableTablet
+await tableSession.insertTablet({ tableName: '...', columnNames: [...], ...});
+```
 - Type-safe with TypeScript interfaces
 - Validation and default values
 
