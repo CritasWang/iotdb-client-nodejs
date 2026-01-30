@@ -434,6 +434,16 @@ export class Session {
           return;
         }
 
+        // Special handling for redirection response (code 400)
+        if (response.code === 400) {
+          reject(new Error(
+            "Server requested redirection (code 400), but client-side redirection is not yet implemented. " +
+            "Please use a single-node IoTDB deployment or consider using the Java client for multi-node clusters with automatic redirection support. " +
+            (response.redirectNode ? `Suggested endpoint: ${response.redirectNode.ip || response.redirectNode.internalIp}:${response.redirectNode.port}` : "")
+          ));
+          return;
+        }
+
         if (response.code !== 200) {
           reject(new Error(response.message || "Insert tablet failed"));
           return;
@@ -505,6 +515,20 @@ export class Session {
       client.insertTablet(req, (err: Error, response: any) => {
         if (err) {
           reject(err);
+          return;
+        }
+
+        // Special handling for redirection response (code 400)
+        if (response.code === 400) {
+          logger.warn(`Server requested redirection for table ${tablet.tableName}: code=400`);
+          if (response.redirectNode) {
+            logger.warn(`Suggested endpoint: ${response.redirectNode.ip || response.redirectNode.internalIp}:${response.redirectNode.port}`);
+          }
+          reject(new Error(
+            "Server requested redirection (code 400), but client-side redirection is not yet implemented. " +
+            "Please use a single-node IoTDB deployment or consider using the Java client for multi-node clusters with automatic redirection support. " +
+            (response.redirectNode ? `Suggested endpoint: ${response.redirectNode.ip || response.redirectNode.internalIp}:${response.redirectNode.port}` : "")
+          ));
           return;
         }
 
