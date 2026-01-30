@@ -5,7 +5,7 @@
  * operations in IoTDB, including explicit session management and nodeUrls.
  */
 
-import { TableSessionPool, PoolConfigBuilder, TSDataType } from "../src";
+import { TableSessionPool, PoolConfigBuilder, TSDataType, ColumnCategory } from "../src";
 
 async function main() {
   console.log("=== TableSessionPool Example ===\n");
@@ -89,16 +89,17 @@ async function main() {
     await dataSet.close();
     console.log("Databases found:", dbCount);
 
-    // Insert data
-    console.log("Inserting data...");
-    await pool.insertTablet({
-      deviceId: "root.table_example.table1",
-      measurements: ["column1", "column2"],
-      dataTypes: [TSDataType.INT32, TSDataType.FLOAT],
+    // Insert data using new TableTablet interface
+    console.log("Inserting table data...");
+    await pool.insertTableTablet({
+      tableName: "table1",
+      columnNames: ["device_id", "timestamp", "column1", "column2"],
+      columnTypes: [TSDataType.TEXT, TSDataType.TIMESTAMP, TSDataType.INT32, TSDataType.FLOAT],
+      columnCategories: [ColumnCategory.ID, ColumnCategory.TIME, ColumnCategory.MEASUREMENT, ColumnCategory.MEASUREMENT],
       timestamps: [Date.now()],
-      values: [[100, 25.5]],
+      values: [["device_001", Date.now(), 100, 25.5]],
     });
-    console.log("Data inserted");
+    console.log("Table data inserted");
 
     // Approach 2: Explicit session management
     console.log("\n--- Approach 2: Explicit session management ---");
@@ -118,15 +119,16 @@ async function main() {
       await queryDataSet.close();
       console.log("Query result:", rowCount, "rows");
 
-      // Insert with explicit session
-      await session.insertTablet({
-        deviceId: "root.table_example.table1",
-        measurements: ["column1", "column2"],
-        dataTypes: [TSDataType.INT32, TSDataType.FLOAT],
+      // Insert with explicit session using TableTablet
+      await session.insertTableTablet({
+        tableName: "table1",
+        columnNames: ["device_id", "timestamp", "column1", "column2"],
+        columnTypes: [TSDataType.TEXT, TSDataType.TIMESTAMP, TSDataType.INT32, TSDataType.FLOAT],
+        columnCategories: [ColumnCategory.ID, ColumnCategory.TIME, ColumnCategory.MEASUREMENT, ColumnCategory.MEASUREMENT],
         timestamps: [Date.now() + 1000],
-        values: [[200, 30.5]],
+        values: [["device_002", Date.now() + 1000, 200, 30.5]],
       });
-      console.log("Data inserted via explicit session");
+      console.log("Table data inserted via explicit session");
     } finally {
       // Always release the session back to the pool
       pool.releaseSession(session);

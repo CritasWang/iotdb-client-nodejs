@@ -55,9 +55,9 @@ async function main() {
     );
     console.log("Timeseries created");
 
-    // Insert tablet data
-    console.log("\nInserting tablet data...");
-    await session.insertTablet({
+    // Insert tablet data using new TreeTablet interface
+    console.log("\nInserting tree tablet data...");
+    await session.insertTreeTablet({
       deviceId: "root.example.device1",
       measurements: ["temperature", "humidity"],
       dataTypes: [TSDataType.FLOAT, TSDataType.FLOAT],
@@ -68,7 +68,7 @@ async function main() {
         [26.5, 62.0],
       ],
     });
-    console.log("Tablet data inserted");
+    console.log("Tree tablet data inserted");
 
     // Query data using SessionDataSet iterator pattern
     console.log("\nQuerying data...");
