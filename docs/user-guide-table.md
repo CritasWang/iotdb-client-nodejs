@@ -362,10 +362,10 @@ interface TableTablet {
 **ColumnCategory Enum:**
 ```typescript
 enum ColumnCategory {
-  TAG = 0,        // Tag column - for device identification (indexed, used in WHERE clauses)
-  FIELD = 1,      // Field column - measurement values
-  ATTRIBUTE = 2,  // Attribute column - device metadata (not indexed)
-  TIME = 3,       // Time column - timestamp column
+  TAG = 0,        // Tag column - indexed for WHERE clause filtering (e.g., device_id, region_id)
+  FIELD = 1,      // Field column - measurement values (e.g., temperature, humidity)
+  ATTRIBUTE = 2,  // Attribute column - metadata not indexed (e.g., model, firmware_version)
+  TIME = 3,       // Time column (reserved for internal use only)
 }
 ```
 
@@ -373,7 +373,7 @@ enum ColumnCategory {
 - `TAG` (0) - Indexed columns used for filtering in WHERE clauses (e.g., device_id, region_id)
 - `FIELD` (1) - Measurement values (e.g., temperature, humidity)
 - `ATTRIBUTE` (2) - Metadata not used for filtering (e.g., device_model, firmware_version)
-- `TIME` (3) - Timestamp column (usually auto-managed)
+- `TIME` (3) - Reserved for internal use. **Do not use** in columnCategories array - timestamps are handled separately via the timestamps array
 
 **Example with ColumnCategory enum:**
 ```typescript

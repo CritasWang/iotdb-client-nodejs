@@ -585,12 +585,14 @@ interface TableTablet {
 }
 
 enum ColumnCategory {
-  TAG = 0,         // Tag column - for device identification
+  TAG = 0,         // Tag column - indexed for WHERE clause filtering
   FIELD = 1,       // Field column - measurement values
-  ATTRIBUTE = 2,   // Attribute column - device attributes
-  TIME = 3,        // Time column
+  ATTRIBUTE = 2,   // Attribute column - metadata not indexed
+  TIME = 3,        // Time column (reserved for internal use, do not use in columnCategories)
 }
 ```
+
+**Note:** TIME is reserved for internal use. When specifying columnCategories in TableTablet, only use TAG, FIELD, and ATTRIBUTE. Timestamps are handled separately via the timestamps array.
 
 #### Deprecated Tablet (for backward compatibility)
 ```typescript

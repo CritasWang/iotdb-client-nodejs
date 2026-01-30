@@ -59,37 +59,37 @@ Matches C# and Java client definitions:
 
 ```typescript
 enum ColumnCategory {
-  TAG = 0,        // Tag column - for device identification
+  TAG = 0,        // Tag column - indexed for WHERE clause filtering
   FIELD = 1,      // Field column - measurement values
-  ATTRIBUTE = 2,  // Attribute column - device attributes
-  TIME = 3,       // Time column
+  ATTRIBUTE = 2,  // Attribute column - metadata not indexed
+  TIME = 3,       // Time column (reserved for internal use only)
 }
 ```
+
+**Important:** TIME is reserved for internal use. Do not use it in columnCategories arrays. Timestamps are handled separately via the timestamps array.
 
 ### Example
 
 ```typescript
-await tablePool.insertTableTablet({
+await tablePool.insertTablet({
   tableName: 'sensor_data',
-  columnNames: ['time', 'device_id', 'model', 'temperature', 'humidity'],
+  columnNames: ['device_id', 'model', 'temperature', 'humidity'],
   columnTypes: [
-    TSDataType.TIMESTAMP,
     TSDataType.STRING,
     TSDataType.STRING,
     TSDataType.FLOAT,
     TSDataType.FLOAT
   ],
   columnCategories: [
-    ColumnCategory.TIME,
-    ColumnCategory.TAG,
-    ColumnCategory.ATTRIBUTE,
-    ColumnCategory.FIELD,
-    ColumnCategory.FIELD
+    ColumnCategory.TAG,        // device_id - indexed tag
+    ColumnCategory.ATTRIBUTE,  // model - metadata
+    ColumnCategory.FIELD,      // temperature - measurement
+    ColumnCategory.FIELD       // humidity - measurement
   ],
   timestamps: [Date.now(), Date.now() + 1000],
   values: [
-    [Date.now(), 'device_001', 'model_A', 25.5, 60.0],
-    [Date.now() + 1000, 'device_001', 'model_A', 26.0, 61.5],
+    ['device_001', 'model_A', 25.5, 60.0],
+    ['device_001', 'model_A', 26.0, 61.5],
   ],
 });
 ```
@@ -145,13 +145,13 @@ await session.insertTreeTablet({
 ### After (Table Model)
 
 ```typescript
-await tablePool.insertTableTablet({
+await tablePool.insertTablet({
   tableName: 'my_table',
-  columnNames: ['time', 'device_id', 'sensor1'],
-  columnTypes: [TSDataType.TIMESTAMP, TSDataType.STRING, TSDataType.FLOAT],
-  columnCategories: [ColumnCategory.TIME, ColumnCategory.TAG, ColumnCategory.FIELD],
+  columnNames: ['device_id', 'sensor1'],
+  columnTypes: [TSDataType.STRING, TSDataType.FLOAT],
+  columnCategories: [ColumnCategory.TAG, ColumnCategory.FIELD],
   timestamps: [Date.now()],
-  values: [[Date.now(), 'device_001', 25.5]],
+  values: [['device_001', 25.5]],
 });
 ```
 

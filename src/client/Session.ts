@@ -46,12 +46,15 @@ export { SessionDataSet, RowRecord };
 /**
  * Column category for table model
  * Matches C# and Java IoTDB client definitions
+ * 
+ * Note: TIME is reserved for internal use. When specifying columnCategories in TableTablet,
+ * only use TAG, FIELD, and ATTRIBUTE. Timestamps are handled separately via the timestamps array.
  */
 export enum ColumnCategory {
-  TAG = 0,        // Tag column - for device identification
-  FIELD = 1,      // Field column - measurement values
-  ATTRIBUTE = 2,  // Attribute column - device attributes
-  TIME = 3,       // Time column
+  TAG = 0,        // Tag column - indexed for WHERE clause filtering (e.g., device_id, region_id)
+  FIELD = 1,      // Field column - measurement values (e.g., temperature, humidity)
+  ATTRIBUTE = 2,  // Attribute column - metadata not indexed (e.g., model, firmware_version)
+  TIME = 3,       // Time column (reserved for internal use, do not use in columnCategories)
 }
 
 /**

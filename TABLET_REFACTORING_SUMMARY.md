@@ -51,12 +51,14 @@ interface TableTablet {
 }
 
 enum ColumnCategory {
-  TAG = 0,        // Device identification
+  TAG = 0,        // Device identification - indexed for WHERE clauses
   FIELD = 1,      // Measurement values
-  ATTRIBUTE = 2,  // Device attributes  
-  TIME = 3,       // Timestamp
+  ATTRIBUTE = 2,  // Device attributes - not indexed
+  TIME = 3,       // Timestamp (reserved for internal use, do not use in columnCategories)
 }
 ```
+
+**Note:** TIME is reserved for internal use. Users should only use TAG, FIELD, and ATTRIBUTE in columnCategories arrays. Timestamps are handled separately via the timestamps array.
 
 ## Implementation Details
 
@@ -155,9 +157,9 @@ await tableSession.insertTableTablet({ ... });
 // New (recommended)
 await tableSession.insertTablet({
   tableName: 'table1',
-  columnNames: ['device_id', 'time', 'temp'],
-  columnTypes: [TSDataType.TEXT, TSDataType.TIMESTAMP, TSDataType.FLOAT],
-  columnCategories: [ColumnCategory.TAG, ColumnCategory.TIME, ColumnCategory.FIELD],
+  columnNames: ['device_id', 'temp'],
+  columnTypes: [TSDataType.TEXT, TSDataType.FLOAT],
+  columnCategories: [ColumnCategory.TAG, ColumnCategory.FIELD],
   timestamps: [...],
   values: [[...], [...]]
 });

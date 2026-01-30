@@ -137,18 +137,16 @@ async function executeWrite(pool, work, session = null) {
   const updatedTimestamps = work.timestamps.map((offset) => now + offset);
   
   // Build column names, types, and categories for table model
-  const columnNames = ['device_id', 'timestamp', ...work.measurements];
-  const columnTypes = [5, 8, ...work.dataTypes]; // TEXT for device_id, TIMESTAMP for timestamp, then measurement types
+  const columnNames = ['device_id', ...work.measurements];
+  const columnTypes = [5, ...work.dataTypes]; // TEXT for device_id, then measurement types
   const columnCategories = [
-    ColumnCategory.TAG,
-    ColumnCategory.TIME,
+    ColumnCategory.TAG,  // device_id is a TAG
     ...work.measurements.map(() => ColumnCategory.FIELD)
   ];
   
   // Build values array including device_id for each row
-  const valuesWithDeviceId = work.values.map((row, idx) => [
+  const valuesWithDeviceId = work.values.map((row) => [
     work.deviceId,
-    updatedTimestamps[idx],
     ...row
   ]);
   

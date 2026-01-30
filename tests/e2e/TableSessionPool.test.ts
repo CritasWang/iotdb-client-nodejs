@@ -141,7 +141,6 @@ describe("TableSessionPool E2E Tests", () => {
     const tablet = {
       tableName: tableName,
       columnNames: [
-        "time",
         "region_id",
         "plant_id",
         "device_id",
@@ -150,7 +149,6 @@ describe("TableSessionPool E2E Tests", () => {
         "humidity",
       ],
       columnTypes: [
-        TSDataType.TIMESTAMP,
         TSDataType.STRING,
         TSDataType.STRING,
         TSDataType.STRING,
@@ -159,7 +157,6 @@ describe("TableSessionPool E2E Tests", () => {
         TSDataType.DOUBLE,
       ],
       columnCategories: [
-        ColumnCategory.TIME,       // time - timestamp column
         ColumnCategory.ATTRIBUTE,  // region_id - metadata (not indexed)
         ColumnCategory.ATTRIBUTE,  // plant_id - metadata (not indexed)
         ColumnCategory.TAG,        // device_id - indexed tag for filtering
@@ -173,7 +170,7 @@ describe("TableSessionPool E2E Tests", () => {
 
     for (let i = 0; i < 50; i++) {
       tablet.timestamps.push(i);
-      tablet.values.push([i, "1", "5", "3", "A", 1.23 + i, 111.1 + i]);
+      tablet.values.push(["1", "5", "3", "A", 1.23 + i, 111.1 + i]);
     }
 
     await pool.insertTablet(tablet);
@@ -231,10 +228,9 @@ describe("TableSessionPool E2E Tests", () => {
     // Insert data with explicit ColumnCategory enum showing best practices
     const tablet = {
       tableName: tableName,
-      columnNames: ["time", "t1", "f1"],
-      columnTypes: [TSDataType.TIMESTAMP, TSDataType.STRING, TSDataType.INT32],
+      columnNames: ["t1", "f1"],
+      columnTypes: [TSDataType.STRING, TSDataType.INT32],
       columnCategories: [
-        ColumnCategory.TIME,  // Timestamp column - identifies the time dimension
         ColumnCategory.TAG,   // Tag column - indexed for efficient filtering in WHERE clauses
         ColumnCategory.FIELD, // Field column - stores measurement/sensor values
       ],

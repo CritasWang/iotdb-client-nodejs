@@ -362,18 +362,18 @@ interface TableTablet {
 **ColumnCategory 枚举:**
 ```typescript
 enum ColumnCategory {
-  TAG = 0,        // 标签列 - 用于设备标识(已索引,用于 WHERE 子句)
-  FIELD = 1,      // 字段列 - 测量值
-  ATTRIBUTE = 2,  // 属性列 - 设备元数据(未索引)
-  TIME = 3,       // 时间列 - 时间戳列
+  TAG = 0,        // 标签列 - 用于 WHERE 子句筛选的索引列(如 device_id、region_id)
+  FIELD = 1,      // 字段列 - 测量值(如 temperature、humidity)
+  ATTRIBUTE = 2,  // 属性列 - 未索引的元数据(如 model、firmware_version)
+  TIME = 3,       // 时间列(仅供内部使用)
 }
 ```
 
 **列类别说明:**
-- `TAG` (0) - 用于筛选的索引列(例如 device_id、region_id)
+- `TAG` (0) - 用于 WHERE 子句筛选的索引列(例如 device_id、region_id)
 - `FIELD` (1) - 测量值(例如 temperature、humidity)
 - `ATTRIBUTE` (2) - 不用于筛选的元数据(例如 device_model、firmware_version)
-- `TIME` (3) - 时间戳列(通常自动管理)
+- `TIME` (3) - 仅供内部使用。**不要在 columnCategories 数组中使用** - 时间戳通过 timestamps 数组单独处理
 
 **使用 ColumnCategory 枚举的示例:**
 ```typescript
