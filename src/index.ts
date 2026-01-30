@@ -20,6 +20,7 @@
 export { Session } from "./client/Session";
 export type { QueryResult, Tablet, TreeTablet, TableTablet } from "./client/Session";
 export { ColumnCategory } from "./client/Session";
+export { TableSession } from "./client/TableSession";
 export { SessionDataSet } from "./client/SessionDataSet";
 export { RowRecord } from "./client/RowRecord";
 export { SessionPool } from "./client/SessionPool";

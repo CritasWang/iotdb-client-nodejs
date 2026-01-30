@@ -17,6 +17,7 @@
  * under the License.
  */
 
+import { TableSession } from './TableSession';
 import { Session, TableTablet } from './Session';
 import { PoolConfig, SQL_DIALECT_TABLE, InternalConfig } from '../utils/Config';
 import { BaseSessionPool } from './BaseSessionPool';
@@ -24,6 +25,7 @@ import { BaseSessionPool } from './BaseSessionPool';
 /**
  * TableSessionPool provides connection pooling optimized for table model operations
  * Automatically configures sessions for table mode by setting sql_dialect to 'table'
+ * Uses TableSession instances which extend Session
  */
 export class TableSessionPool extends BaseSessionPool {
   constructor(
@@ -49,7 +51,8 @@ export class TableSessionPool extends BaseSessionPool {
       sqlDialect: SQL_DIALECT_TABLE,
     };
     
-    const session = new Session(internalConfig);
+    // Create TableSession instance instead of Session
+    const session = new TableSession(internalConfig);
     await session.open();
 
     // Set session to table model by executing a USE DATABASE command if database is specified
@@ -67,13 +70,13 @@ export class TableSessionPool extends BaseSessionPool {
   }
 
   /**
-   * Insert table model tablet
+   * Insert table model tablet using polymorphic insertTablet method
    * @param tablet TableTablet with tableName, columnNames, columnTypes, columnCategories, timestamps, values
    */
-  async insertTableTablet(tablet: TableTablet): Promise<void> {
-    const session = await this.getSession();
+  async insertTablet(tablet: TableTablet): Promise<void> {
+    const session = await this.getSession() as TableSession;
     try {
-      return await session.insertTableTablet(tablet);
+      return await session.insertTablet(tablet);
     } finally {
       this.releaseSession(session);
     }
@@ -82,3 +85,4 @@ export class TableSessionPool extends BaseSessionPool {
 
 // Re-export types for backward compatibility and new types
 export type { QueryResult, Tablet, TreeTablet, TableTablet, ColumnCategory } from './Session';
+export { TableSession } from './TableSession';
