@@ -55,12 +55,12 @@ npm install iotdb-client-nodejs
 
 **TypeScript:**
 ```typescript
-import { Session, SessionPool, ConfigBuilder, PoolConfigBuilder } from 'iotdb-client-nodejs';
+import { Session, SessionPool, ConfigBuilder, PoolConfigBuilder, TreeTablet, TSDataType } from 'iotdb-client-nodejs';
 ```
 
 **JavaScript:**
 ```javascript
-const { Session, SessionPool, ConfigBuilder, PoolConfigBuilder } = require('iotdb-client-nodejs');
+const { Session, SessionPool, ConfigBuilder, PoolConfigBuilder, TreeTablet, TSDataType } = require('iotdb-client-nodejs');
 ```
 
 ## 3. 快速入门
@@ -68,7 +68,7 @@ const { Session, SessionPool, ConfigBuilder, PoolConfigBuilder } = require('iotd
 ### 3.1 基础 Session 示例
 
 ```typescript
-import { Session } from 'iotdb-client-nodejs';
+import { Session, TreeTablet } from 'iotdb-client-nodejs';
 
 async function quickStart() {
   // 创建并打开 session
@@ -90,14 +90,15 @@ async function quickStart() {
       'CREATE TIMESERIES root.test.device1.temperature WITH DATATYPE=FLOAT, ENCODING=RLE'
     );
     
-    // 使用 insertTablet 插入数据
-    await session.insertTablet({
-      deviceId: 'root.test.device1',
-      measurements: ['temperature'],
-      dataTypes: [3], // FLOAT
-      timestamps: [Date.now()],
-      values: [[25.5]],
-    });
+    // 使用 TreeTablet 类与 addRow 插入数据
+    const tablet = new TreeTablet(
+      'root.test.device1',
+      ['temperature'],
+      [3] // FLOAT
+    );
+    tablet.addRow(Date.now(), [25.5]);
+    
+    await session.insertTablet(tablet);
     
     // 查询数据
     const dataSet = await session.executeQueryStatement(
@@ -300,16 +301,16 @@ await session.executeNonQueryStatement(
 
 #### 4.4.4 数据插入
 
-##### `async insertTablet(tablet: Tablet): Promise<void>`
+##### `async insertTablet(tablet: TreeTablet | ITreeTablet): Promise<void>`
 
 高效地批量插入数据点。
 
 **参数:**
-- `tablet`: 包含设备数据的 Tablet 对象
+- `tablet`: TreeTablet 对象或包含设备数据的普通对象
 
-**Tablet 接口 (TreeTablet):**
+**TreeTablet 接口 (用于普通对象):**
 ```typescript
-interface TreeTablet {
+interface ITreeTablet {
   deviceId: string;           // 设备路径 (例如 'root.test.device1')
   measurements: string[];     // 测点名称
   dataTypes: number[];        // 数据类型代码 (TSDataType - 参见第 7 节)
@@ -318,7 +319,27 @@ interface TreeTablet {
 }
 ```
 
-**使用 TSDataType 枚举的示例:**
+**TreeTablet 类 (带辅助方法 - 推荐):**
+```typescript
+import { TreeTablet, TSDataType } from 'iotdb-client-nodejs';
+
+// 创建 tablet
+const tablet = new TreeTablet(
+  'root.test.device1',
+  ['temperature', 'humidity', 'status'],
+  [TSDataType.FLOAT, TSDataType.FLOAT, TSDataType.BOOLEAN]
+);
+
+// 使用 addRow 方法逐行添加数据
+tablet.addRow(Date.now(), [25.5, 60.0, true]);
+tablet.addRow(Date.now() + 1000, [26.0, 61.5, true]);
+tablet.addRow(Date.now() + 2000, [25.8, 59.5, false]);
+
+// 插入 tablet
+await session.insertTablet(tablet);
+```
+
+**替代方案: 普通对象方法 (仍支持):**
 ```typescript
 import { TSDataType } from 'iotdb-client-nodejs';
 
@@ -357,6 +378,12 @@ await session.insertTablet({
   ],
 });
 ```
+
+**TreeTablet 类的优势:**
+- ✅ **便捷**: `addRow()` 方法简化逐行添加数据
+- ✅ **类型安全**: 构造函数验证参数长度
+- ✅ **已验证**: 自动检查值是否与测点数量匹配
+- ✅ **流式友好**: 轻松在数据到达时添加行
 
 ## 5. SessionPool API
 

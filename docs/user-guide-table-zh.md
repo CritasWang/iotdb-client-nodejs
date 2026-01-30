@@ -65,12 +65,12 @@ npm install iotdb-client-nodejs
 
 **TypeScript:**
 ```typescript
-import { TableSessionPool, PoolConfigBuilder } from 'iotdb-client-nodejs';
+import { TableSessionPool, PoolConfigBuilder, TableTablet, ColumnCategory, TSDataType } from 'iotdb-client-nodejs';
 ```
 
 **JavaScript:**
 ```javascript
-const { TableSessionPool, PoolConfigBuilder } = require('iotdb-client-nodejs');
+const { TableSessionPool, PoolConfigBuilder, TableTablet, ColumnCategory, TSDataType } = require('iotdb-client-nodejs');
 ```
 
 ## 3. 快速入门
@@ -78,7 +78,7 @@ const { TableSessionPool, PoolConfigBuilder } = require('iotdb-client-nodejs');
 ### 3.1 基础 TableSessionPool 示例
 
 ```typescript
-import { TableSessionPool } from 'iotdb-client-nodejs';
+import { TableSessionPool, TableTablet, ColumnCategory } from 'iotdb-client-nodejs';
 
 async function quickStart() {
   // 创建并初始化表 session 连接池
@@ -110,15 +110,16 @@ async function quickStart() {
       ) WITH (TTL=3600000)
     `);
     
-    // 使用 Tablet 插入数据
-    await pool.insertTablet({
-      tableName: 'sensor_data',
-      columnNames: ['region_id', 'device_id', 'model', 'temperature', 'humidity'],
-      columnTypes: [5, 5, 5, 3, 4], // STRING, STRING, STRING, FLOAT, DOUBLE
-      columnCategories: [0, 0, 1, 2, 2], // TAG, TAG, ATTRIBUTE, FIELD, FIELD
-      timestamps: [Date.now()],
-      values: [['region1', 'device001', 'ModelA', 25.5, 60.0]],
-    });
+    // 使用 TableTablet 类与 addRow 插入数据
+    const tablet = new TableTablet(
+      'sensor_data',
+      ['region_id', 'device_id', 'model', 'temperature', 'humidity'],
+      [5, 5, 5, 3, 4], // STRING, STRING, STRING, FLOAT, DOUBLE
+      [ColumnCategory.TAG, ColumnCategory.TAG, ColumnCategory.ATTRIBUTE, ColumnCategory.FIELD, ColumnCategory.FIELD]
+    );
+    tablet.addRow(Date.now(), ['region1', 'device001', 'ModelA', 25.5, 60.0]);
+    
+    await pool.insertTablet(tablet);
     
     // 查询数据
     const dataSet = await pool.executeQueryStatement(`
@@ -340,16 +341,16 @@ await pool.executeNonQueryStatement('DROP DATABASE my_db');
 
 #### 4.4.4 数据插入
 
-##### `async insertTablet(tablet: TableTablet): Promise<void>`
+##### `async insertTablet(tablet: TableTablet | ITableTablet): Promise<void>`
 
 使用 tablet 格式向表中插入数据。
 
 **参数:**
-- `tablet`: TableTablet 对象
+- `tablet`: TableTablet 对象或包含表数据的普通对象
 
-**TableTablet 接口:**
+**TableTablet 接口 (用于普通对象):**
 ```typescript
-interface TableTablet {
+interface ITableTablet {
   tableName: string;                    // 表名
   columnNames: string[];                // 列名
   columnTypes: number[];                // 数据类型代码 (TSDataType)
@@ -363,19 +364,40 @@ interface TableTablet {
 ```typescript
 enum ColumnCategory {
   TAG = 0,        // 标签列 - 用于 WHERE 子句筛选的索引列(如 device_id、region_id)
-  FIELD = 1,      // 字段列 - 测量值(如 temperature、humidity)
-  ATTRIBUTE = 2,  // 属性列 - 未索引的元数据(如 model、firmware_version)
+  FIELD = 2,      // 字段列 - 测量值(如 temperature、humidity)
+  ATTRIBUTE = 1,  // 属性列 - 未索引的元数据(如 model、firmware_version)
   TIME = 3,       // 时间列(仅供内部使用)
 }
 ```
 
 **列类别说明:**
 - `TAG` (0) - 用于 WHERE 子句筛选的索引列(例如 device_id、region_id)
-- `FIELD` (1) - 测量值(例如 temperature、humidity)
-- `ATTRIBUTE` (2) - 不用于筛选的元数据(例如 device_model、firmware_version)
+- `FIELD` (2) - 测量值(例如 temperature、humidity)
+- `ATTRIBUTE` (1) - 不用于筛选的元数据(例如 device_model、firmware_version)
 - `TIME` (3) - 仅供内部使用。**不要在 columnCategories 数组中使用** - 时间戳通过 timestamps 数组单独处理
 
-**使用 ColumnCategory 枚举的示例:**
+**TableTablet 类 (带辅助方法 - 推荐):**
+```typescript
+import { TableTablet, ColumnCategory, TSDataType } from 'iotdb-client-nodejs';
+
+// 创建 tablet
+const tablet = new TableTablet(
+  'sensor_data',
+  ['region_id', 'device_id', 'model', 'temperature', 'humidity'],
+  [TSDataType.TEXT, TSDataType.TEXT, TSDataType.TEXT, TSDataType.FLOAT, TSDataType.DOUBLE],
+  [ColumnCategory.TAG, ColumnCategory.TAG, ColumnCategory.ATTRIBUTE, ColumnCategory.FIELD, ColumnCategory.FIELD]
+);
+
+// 使用 addRow 方法逐行添加数据
+tablet.addRow(Date.now(), ['region1', 'device001', 'ModelA', 25.5, 60.0]);
+tablet.addRow(Date.now() + 1000, ['region1', 'device001', 'ModelA', 26.0, 61.5]);
+tablet.addRow(Date.now() + 2000, ['region1', 'device002', 'ModelB', 24.8, 58.5]);
+
+// 插入 tablet
+await pool.insertTablet(tablet);
+```
+
+**替代方案: 普通对象方法 (仍支持):**
 ```typescript
 import { ColumnCategory, TSDataType } from 'iotdb-client-nodejs';
 
@@ -409,11 +431,17 @@ await pool.insertTablet({
   tableName: 'sensor_data',
   columnNames: ['region_id', 'device_id', 'model', 'temperature', 'humidity'],
   columnTypes: [5, 5, 5, 3, 4],           // TEXT, TEXT, TEXT, FLOAT, DOUBLE
-  columnCategories: [0, 0, 2, 1, 1],      // TAG, TAG, ATTRIBUTE, FIELD, FIELD
+  columnCategories: [0, 0, 1, 2, 2],      // TAG, TAG, ATTRIBUTE, FIELD, FIELD
   timestamps: [Date.now()],
   values: [['region1', 'device001', 'ModelA', 25.5, 60.0]],
 });
 ```
+
+**TableTablet 类的优势:**
+- ✅ **便捷**: `addRow()` 方法简化逐行添加数据
+- ✅ **类型安全**: 构造函数验证参数长度
+- ✅ **已验证**: 自动检查值是否与列数量匹配
+- ✅ **流式友好**: 轻松在数据到达时添加行
 
 ## 5. 配置构建器
 

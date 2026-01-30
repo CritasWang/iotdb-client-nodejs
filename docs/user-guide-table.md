@@ -65,12 +65,12 @@ npm install iotdb-client-nodejs
 
 **TypeScript:**
 ```typescript
-import { TableSessionPool, PoolConfigBuilder } from 'iotdb-client-nodejs';
+import { TableSessionPool, PoolConfigBuilder, TableTablet, ColumnCategory, TSDataType } from 'iotdb-client-nodejs';
 ```
 
 **JavaScript:**
 ```javascript
-const { TableSessionPool, PoolConfigBuilder } = require('iotdb-client-nodejs');
+const { TableSessionPool, PoolConfigBuilder, TableTablet, ColumnCategory, TSDataType } = require('iotdb-client-nodejs');
 ```
 
 ## 3. Quick Start
@@ -78,7 +78,7 @@ const { TableSessionPool, PoolConfigBuilder } = require('iotdb-client-nodejs');
 ### 3.1 Basic TableSessionPool Example
 
 ```typescript
-import { TableSessionPool } from 'iotdb-client-nodejs';
+import { TableSessionPool, TableTablet, ColumnCategory } from 'iotdb-client-nodejs';
 
 async function quickStart() {
   // Create and initialize table session pool
@@ -110,15 +110,16 @@ async function quickStart() {
       ) WITH (TTL=3600000)
     `);
     
-    // Insert data using Tablet
-    await pool.insertTablet({
-      tableName: 'sensor_data',
-      columnNames: ['region_id', 'device_id', 'model', 'temperature', 'humidity'],
-      columnTypes: [5, 5, 5, 3, 4], // STRING, STRING, STRING, FLOAT, DOUBLE
-      columnCategories: [0, 0, 1, 2, 2], // TAG, TAG, ATTRIBUTE, FIELD, FIELD
-      timestamps: [Date.now()],
-      values: [['region1', 'device001', 'ModelA', 25.5, 60.0]],
-    });
+    // Insert data using TableTablet class with addRow
+    const tablet = new TableTablet(
+      'sensor_data',
+      ['region_id', 'device_id', 'model', 'temperature', 'humidity'],
+      [5, 5, 5, 3, 4], // STRING, STRING, STRING, FLOAT, DOUBLE
+      [ColumnCategory.TAG, ColumnCategory.TAG, ColumnCategory.ATTRIBUTE, ColumnCategory.FIELD, ColumnCategory.FIELD]
+    );
+    tablet.addRow(Date.now(), ['region1', 'device001', 'ModelA', 25.5, 60.0]);
+    
+    await pool.insertTablet(tablet);
     
     // Query data
     const dataSet = await pool.executeQueryStatement(`
@@ -340,16 +341,16 @@ await pool.executeNonQueryStatement('DROP DATABASE my_db');
 
 #### 4.4.4 Data Insertion
 
-##### `async insertTablet(tablet: TableTablet): Promise<void>`
+##### `async insertTablet(tablet: TableTablet | ITableTablet): Promise<void>`
 
 Inserts data into a table using tablet format.
 
 **Parameters:**
-- `tablet`: TableTablet object
+- `tablet`: TableTablet object or plain object containing table data
 
-**TableTablet Interface:**
+**TableTablet Interface (for plain objects):**
 ```typescript
-interface TableTablet {
+interface ITableTablet {
   tableName: string;                    // Table name
   columnNames: string[];                // Column names
   columnTypes: number[];                // Data type codes (TSDataType)
@@ -363,19 +364,40 @@ interface TableTablet {
 ```typescript
 enum ColumnCategory {
   TAG = 0,        // Tag column - indexed for WHERE clause filtering (e.g., device_id, region_id)
-  FIELD = 1,      // Field column - measurement values (e.g., temperature, humidity)
-  ATTRIBUTE = 2,  // Attribute column - metadata not indexed (e.g., model, firmware_version)
+  FIELD = 2,      // Field column - measurement values (e.g., temperature, humidity)
+  ATTRIBUTE = 1,  // Attribute column - metadata not indexed (e.g., model, firmware_version)
   TIME = 3,       // Time column (reserved for internal use only)
 }
 ```
 
 **Column Categories Explained:**
 - `TAG` (0) - Indexed columns used for filtering in WHERE clauses (e.g., device_id, region_id)
-- `FIELD` (1) - Measurement values (e.g., temperature, humidity)
-- `ATTRIBUTE` (2) - Metadata not used for filtering (e.g., device_model, firmware_version)
+- `FIELD` (2) - Measurement values (e.g., temperature, humidity)
+- `ATTRIBUTE` (1) - Metadata not used for filtering (e.g., device_model, firmware_version)
 - `TIME` (3) - Reserved for internal use. **Do not use** in columnCategories array - timestamps are handled separately via the timestamps array
 
-**Example with ColumnCategory enum:**
+**TableTablet Class (with helper methods - recommended):**
+```typescript
+import { TableTablet, ColumnCategory, TSDataType } from 'iotdb-client-nodejs';
+
+// Create a tablet
+const tablet = new TableTablet(
+  'sensor_data',
+  ['region_id', 'device_id', 'model', 'temperature', 'humidity'],
+  [TSDataType.TEXT, TSDataType.TEXT, TSDataType.TEXT, TSDataType.FLOAT, TSDataType.DOUBLE],
+  [ColumnCategory.TAG, ColumnCategory.TAG, ColumnCategory.ATTRIBUTE, ColumnCategory.FIELD, ColumnCategory.FIELD]
+);
+
+// Add rows one at a time using addRow method
+tablet.addRow(Date.now(), ['region1', 'device001', 'ModelA', 25.5, 60.0]);
+tablet.addRow(Date.now() + 1000, ['region1', 'device001', 'ModelA', 26.0, 61.5]);
+tablet.addRow(Date.now() + 2000, ['region1', 'device002', 'ModelB', 24.8, 58.5]);
+
+// Insert the tablet
+await pool.insertTablet(tablet);
+```
+
+**Alternative: Plain object approach (still supported):**
 ```typescript
 import { ColumnCategory, TSDataType } from 'iotdb-client-nodejs';
 
@@ -409,11 +431,17 @@ await pool.insertTablet({
   tableName: 'sensor_data',
   columnNames: ['region_id', 'device_id', 'model', 'temperature', 'humidity'],
   columnTypes: [5, 5, 5, 3, 4],           // TEXT, TEXT, TEXT, FLOAT, DOUBLE
-  columnCategories: [0, 0, 2, 1, 1],      // TAG, TAG, ATTRIBUTE, FIELD, FIELD
+  columnCategories: [0, 0, 1, 2, 2],      // TAG, TAG, ATTRIBUTE, FIELD, FIELD
   timestamps: [Date.now()],
   values: [['region1', 'device001', 'ModelA', 25.5, 60.0]],
 });
 ```
+
+**Benefits of TableTablet class:**
+- ✅ **Convenient**: `addRow()` method simplifies adding data row-by-row
+- ✅ **Type-safe**: Constructor validates parameter lengths
+- ✅ **Validated**: Automatic checking that values match columns count
+- ✅ **Streaming-friendly**: Easy to add rows as data arrives
 
 ## 5. Configuration Builder
 
