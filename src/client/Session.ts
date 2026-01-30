@@ -509,7 +509,10 @@ export class Session {
         }
 
         if (response.code !== 200) {
-          reject(new Error(response.message || "Insert table tablet failed"));
+          const errorMsg = response.message || "Insert table tablet failed";
+          logger.error(`Insert table tablet failed: code=${response.code}, message=${response.message}`);
+          logger.error(`Request details: prefixPath=${prefixPath}, columns=${tablet.columnNames.length}, rows=${tablet.timestamps.length}`);
+          reject(new Error(`${errorMsg} (code: ${response.code})`));
           return;
         }
 

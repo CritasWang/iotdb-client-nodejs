@@ -128,9 +128,12 @@ describe("Table Model All Data Types E2E Tests", () => {
 
     const now = Date.now();
 
+    // Ensure we're in the correct database context
+    await pool.executeNonQueryStatement("USE test");
+
     // Insert data using insertTablet - table model API
     const tablet = {
-      tableName: "all_types_table", // Table name
+      tableName: "all_types_table", // Table name without database prefix
       columnNames: [
         "region", // TAG
         "device_id", // TAG
