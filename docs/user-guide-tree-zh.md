@@ -8,19 +8,18 @@
 - [1. 简介](#1-简介)
 - [2. 安装](#2-安装)
 - [3. 快速入门](#3-快速入门)
-- [4. Session API](#4-session-api)
-- [5. SessionPool API](#5-sessionpool-api)
-- [6. 配置构建器](#6-配置构建器)
-- [7. 数据类型](#7-数据类型)
-- [8. 代码示例](#8-代码示例)
-- [9. 最佳实践](#9-最佳实践)
-- [10. 故障排查](#10-故障排查)
+- [4. SessionPool API](#4-sessionpool-api)
+- [5. 配置构建器](#5-配置构建器)
+- [6. 数据类型](#6-数据类型)
+- [7. 代码示例](#7-代码示例)
+- [8. 最佳实践](#8-最佳实践)
+- [9. 故障排查](#9-故障排查)
 
 ## 1. 简介
 
 ### 1.1 概述
 
-Apache IoTDB Node.js Client 为树模型(时间序列数据模型)提供了原生支持,使用分层设备路径实现时间序列数据的高效管理。本指南涵盖了树模型操作的 Session 和 SessionPool API。
+Apache IoTDB Node.js Client 为树模型(时间序列数据模型)提供了原生支持,使用分层设备路径实现时间序列数据的高效管理。本指南涵盖了树模型操作的 SessionPool API,提供连接池和高并发支持。
 
 ### 1.2 树模型特性
 
@@ -55,76 +54,22 @@ npm install iotdb-client-nodejs
 
 **TypeScript:**
 ```typescript
-import { Session, SessionPool, ConfigBuilder, PoolConfigBuilder, TreeTablet, TSDataType } from 'iotdb-client-nodejs';
+import { SessionPool, PoolConfigBuilder, TreeTablet, TSDataType } from 'iotdb-client-nodejs';
 ```
 
 **JavaScript:**
 ```javascript
-const { Session, SessionPool, ConfigBuilder, PoolConfigBuilder, TreeTablet, TSDataType } = require('iotdb-client-nodejs');
+const { SessionPool, PoolConfigBuilder, TreeTablet, TSDataType } = require('iotdb-client-nodejs');
 ```
 
 ## 3. 快速入门
 
-### 3.1 基础 Session 示例
+### 3.1 SessionPool 示例
 
 ```typescript
-import { Session, TreeTablet } from 'iotdb-client-nodejs';
+import { SessionPool, TreeTablet } from 'iotdb-client-nodejs';
 
 async function quickStart() {
-  // 创建并打开 session
-  const session = new Session({
-    host: 'localhost',
-    port: 6667,
-    username: 'root',
-    password: 'root',
-  });
-  
-  await session.open();
-  
-  try {
-    // 创建存储组
-    await session.executeNonQueryStatement('CREATE DATABASE root.test');
-    
-    // 创建时间序列
-    await session.executeNonQueryStatement(
-      'CREATE TIMESERIES root.test.device1.temperature WITH DATATYPE=FLOAT, ENCODING=RLE'
-    );
-    
-    // 使用 TreeTablet 类与 addRow 插入数据
-    const tablet = new TreeTablet(
-      'root.test.device1',
-      ['temperature'],
-      [3] // FLOAT
-    );
-    tablet.addRow(Date.now(), [25.5]);
-    
-    await session.insertTablet(tablet);
-    
-    // 查询数据
-    const dataSet = await session.executeQueryStatement(
-      'SELECT temperature FROM root.test.device1'
-    );
-    
-    while (await dataSet.hasNext()) {
-      const row = dataSet.next();
-      console.log(`Timestamp: ${row.getTimestamp()}, Temperature: ${row.getFloat('temperature')}`);
-    }
-    
-    await dataSet.close();
-  } finally {
-    await session.close();
-  }
-}
-
-quickStart();
-```
-
-### 3.2 SessionPool 示例
-
-```typescript
-import { SessionPool } from 'iotdb-client-nodejs';
-
-async function poolExample() {
   // 创建并初始化连接池
   const pool = new SessionPool('localhost', 6667, {
     username: 'root',
@@ -136,18 +81,30 @@ async function poolExample() {
   await pool.init();
   
   try {
-    // 执行查询(连接池自动管理 session)
-    const result = await pool.executeQueryStatement('SHOW DATABASES');
+    // 创建存储组
+    await pool.executeNonQueryStatement('CREATE DATABASE root.test');
     
-    // 插入数据
-    await pool.insertTablet({
-      deviceId: 'root.test.device1',
-      measurements: ['temperature', 'humidity'],
-      dataTypes: [3, 3], // FLOAT, FLOAT
-      timestamps: [Date.now()],
-      values: [[25.5, 60.0]],
-    });
+    // 创建时间序列
+    await pool.executeNonQueryStatement(
+      'CREATE TIMESERIES root.test.device1.temperature WITH DATATYPE=FLOAT, ENCODING=RLE'
+    );
     
+    // 使用 TreeTablet 类与 addRow 插入数据
+    const tablet = new TreeTablet(
+      'root.test.device1',
+      ['temperature'],
+      [3] // FLOAT
+    );
+    tablet.addRow(Date.now(), [25.5]);
+    
+    await pool.insertTablet(tablet);
+    
+    // 查询数据
+    const result = await pool.executeQueryStatement(
+      'SELECT temperature FROM root.test.device1'
+    );
+    
+    console.log('Query result:', result);
     console.log('Pool size:', pool.getPoolSize());
     console.log('Available:', pool.getAvailableSize());
   } finally {
@@ -155,239 +112,12 @@ async function poolExample() {
   }
 }
 
-poolExample();
+quickStart();
 ```
 
-## 4. Session API
+## 4. SessionPool API
 
 ### 4.1 概述
-
-Session 类为 IoTDB 树模型操作提供单一连接。适用于单线程应用程序或需要显式控制连接生命周期的场景。
-
-### 4.2 构造函数
-
-#### 方式 1: 使用配置对象
-
-```typescript
-const session = new Session({
-  host: 'localhost',
-  port: 6667,
-  username: 'root',
-  password: 'root',
-  fetchSize: 1024,
-  timezone: 'UTC+8',
-  enableSSL: false,
-});
-```
-
-#### 方式 2: 使用构建器模式(推荐)
-
-```typescript
-import { ConfigBuilder } from 'iotdb-client-nodejs';
-
-const session = new Session(
-  new ConfigBuilder()
-    .host('localhost')
-    .port(6667)
-    .username('root')
-    .password('root')
-    .fetchSize(1024)
-    .timezone('UTC+8')
-    .build()
-);
-```
-
-### 4.3 配置选项
-
-| 选项 | 类型 | 默认值 | 说明 |
-|--------|------|---------|-------------|
-| `host` | string | 必需 | IoTDB 服务器主机名 |
-| `port` | number | 必需 | IoTDB 服务器端口 |
-| `username` | string | `'root'` | 认证用户名 |
-| `password` | string | `'root'` | 认证密码 |
-| `fetchSize` | number | `1024` | 每批次获取的行数 |
-| `timezone` | string | `'UTC+8'` | 时间戳处理的时区 |
-| `enableSSL` | boolean | `false` | 启用 SSL/TLS 连接 |
-| `sslOptions` | SSLOptions | `undefined` | SSL 证书选项 |
-
-### 4.4 方法
-
-#### 4.4.1 连接管理
-
-##### `async open(): Promise<void>`
-
-打开到 IoTDB 的 session 连接。
-
-**示例:**
-```typescript
-await session.open();
-```
-
-**异常:**
-- 连接失败时抛出错误
-- session 已打开时抛出错误
-
-##### `async close(): Promise<void>`
-
-关闭 session 并释放资源。
-
-**示例:**
-```typescript
-await session.close();
-```
-
-##### `isOpen(): boolean`
-
-检查 session 当前是否打开。
-
-**示例:**
-```typescript
-if (session.isOpen()) {
-  console.log('Session is active');
-}
-```
-
-#### 4.4.2 查询操作
-
-##### `async executeQueryStatement(sql: string, timeoutMs?: number): Promise<SessionDataSet>`
-
-执行查询语句并返回 SessionDataSet 用于遍历结果。
-
-**参数:**
-- `sql`: 查询 SQL 语句
-- `timeoutMs`: 查询超时时间(毫秒,默认: 60000)
-
-**返回值:** SessionDataSet 对象
-
-**示例:**
-```typescript
-const dataSet = await session.executeQueryStatement(
-  'SELECT * FROM root.test.**',
-  30000 // 30 秒超时
-);
-
-while (await dataSet.hasNext()) {
-  const row = dataSet.next();
-  console.log(row.getTimestamp(), row.getFields());
-}
-
-await dataSet.close();
-```
-
-#### 4.4.3 非查询操作
-
-##### `async executeNonQueryStatement(sql: string): Promise<void>`
-
-执行不返回结果的 DDL 或 DML 语句。
-
-**参数:**
-- `sql`: 非查询 SQL 语句
-
-**示例:**
-```typescript
-// 创建存储组
-await session.executeNonQueryStatement('CREATE DATABASE root.test');
-
-// 创建时间序列
-await session.executeNonQueryStatement(
-  'CREATE TIMESERIES root.test.device1.temperature WITH DATATYPE=FLOAT'
-);
-
-// 删除时间序列
-await session.executeNonQueryStatement(
-  'DELETE TIMESERIES root.test.device1.temperature'
-);
-```
-
-#### 4.4.4 数据插入
-
-##### `async insertTablet(tablet: TreeTablet | ITreeTablet): Promise<void>`
-
-高效地批量插入数据点。
-
-**参数:**
-- `tablet`: TreeTablet 对象或包含设备数据的普通对象
-
-**TreeTablet 接口 (用于普通对象):**
-```typescript
-interface ITreeTablet {
-  deviceId: string;           // 设备路径 (例如 'root.test.device1')
-  measurements: string[];     // 测点名称
-  dataTypes: number[];        // 数据类型代码 (TSDataType - 参见第 7 节)
-  timestamps: number[];       // 时间戳(毫秒)
-  values: any[][];           // 二维数组: [行][列]
-}
-```
-
-**TreeTablet 类 (带辅助方法 - 推荐):**
-```typescript
-import { TreeTablet, TSDataType } from 'iotdb-client-nodejs';
-
-// 创建 tablet
-const tablet = new TreeTablet(
-  'root.test.device1',
-  ['temperature', 'humidity', 'status'],
-  [TSDataType.FLOAT, TSDataType.FLOAT, TSDataType.BOOLEAN]
-);
-
-// 使用 addRow 方法逐行添加数据
-tablet.addRow(Date.now(), [25.5, 60.0, true]);
-tablet.addRow(Date.now() + 1000, [26.0, 61.5, true]);
-tablet.addRow(Date.now() + 2000, [25.8, 59.5, false]);
-
-// 插入 tablet
-await session.insertTablet(tablet);
-```
-
-**替代方案: 普通对象方法 (仍支持):**
-```typescript
-import { TSDataType } from 'iotdb-client-nodejs';
-
-await session.insertTablet({
-  deviceId: 'root.test.device1',
-  measurements: ['temperature', 'humidity', 'status'],
-  dataTypes: [TSDataType.FLOAT, TSDataType.FLOAT, TSDataType.BOOLEAN],
-  timestamps: [
-    Date.now(),
-    Date.now() + 1000,
-    Date.now() + 2000,
-  ],
-  values: [
-    [25.5, 60.0, true],
-    [26.0, 61.5, true],
-    [25.8, 59.5, false],
-  ],
-});
-```
-
-**使用数字数据类型代码的示例:**
-```typescript
-await session.insertTablet({
-  deviceId: 'root.test.device1',
-  measurements: ['temperature', 'humidity', 'status'],
-  dataTypes: [3, 3, 0], // FLOAT, FLOAT, BOOLEAN
-  timestamps: [
-    Date.now(),
-    Date.now() + 1000,
-    Date.now() + 2000,
-  ],
-  values: [
-    [25.5, 60.0, true],
-    [26.0, 61.5, true],
-    [25.8, 59.5, false],
-  ],
-});
-```
-
-**TreeTablet 类的优势:**
-- ✅ **便捷**: `addRow()` 方法简化逐行添加数据
-- ✅ **类型安全**: 构造函数验证参数长度
-- ✅ **已验证**: 自动检查值是否与测点数量匹配
-- ✅ **流式友好**: 轻松在数据到达时添加行
-
-## 5. SessionPool API
-
-### 5.1 概述
 
 SessionPool 为高并发场景提供连接池。它自动管理多个 session,在节点间分配负载,并回收空闲连接。
 
@@ -398,7 +128,7 @@ SessionPool 为高并发场景提供连接池。它自动管理多个 session,�
 - 连接池耗尽时的等待队列
 - 线程安全操作
 
-### 5.2 构造函数
+### 4.2 构造函数
 
 #### 方式 1: 传统 API(相同端口)
 
@@ -449,7 +179,7 @@ const pool = new SessionPool(
 );
 ```
 
-### 5.3 连接池配置选项
+### 4.3 连接池配置选项
 
 | 选项 | 类型 | 默认值 | 说明 |
 |--------|------|---------|-------------|
@@ -458,9 +188,9 @@ const pool = new SessionPool(
 | `maxIdleTime` | number | `60000` | 清理前的最大空闲时间(毫秒) |
 | `waitTimeout` | number | `60000` | 等待可用 session 的最大时间(毫秒) |
 
-### 5.4 方法
+### 4.4 方法
 
-#### 5.4.1 连接池管理
+#### 4.4.1 连接池管理
 
 ##### `async init(): Promise<void>`
 
@@ -480,7 +210,7 @@ await pool.init();
 await pool.close();
 ```
 
-#### 5.4.2 自动 Session 管理
+#### 4.4.2 自动 Session 管理
 
 连接池会自动为这些操作获取和释放 session:
 
@@ -517,7 +247,7 @@ await pool.insertTablet({
 });
 ```
 
-#### 5.4.3 显式 Session 管理
+#### 4.4.3 显式 Session 管理
 
 对于同一 session 上的多个操作:
 
@@ -546,7 +276,7 @@ try {
 pool.releaseSession(session);
 ```
 
-#### 5.4.4 连接池统计
+#### 4.4.4 连接池统计
 
 ##### `getPoolSize(): number`
 
@@ -567,11 +297,11 @@ console.log(`Available: ${pool.getAvailableSize()}`);
 console.log(`In Use: ${pool.getInUseSize()}`);
 ```
 
-## 6. 配置构建器
+## 5. 配置构建器
 
-### 6.1 ConfigBuilder
+### 5.1 PoolConfigBuilder
 
-用于构建 Session 配置的流式 API。
+用于构建 SessionPool 配置的流式 API。
 
 **可用方法:**
 - `host(host: string): this`
@@ -584,27 +314,6 @@ console.log(`In Use: ${pool.getInUseSize()}`);
 - `fetchSize(size: number): this`
 - `enableSSL(enable: boolean): this`
 - `sslOptions(options: SSLOptions): this`
-- `build(): Config`
-
-**示例:**
-```typescript
-const config = new ConfigBuilder()
-  .host('localhost')
-  .port(6667)
-  .username('root')
-  .password('root')
-  .fetchSize(2048)
-  .timezone('UTC+8')
-  .build();
-
-const session = new Session(config);
-```
-
-### 6.2 PoolConfigBuilder
-
-扩展 ConfigBuilder,添加连接池专用选项。
-
-**额外方法:**
 - `maxPoolSize(size: number): this`
 - `minPoolSize(size: number): this`
 - `maxIdleTime(time: number): this`
@@ -626,9 +335,9 @@ const poolConfig = new PoolConfigBuilder()
 const pool = new SessionPool(poolConfig);
 ```
 
-## 7. 数据类型
+## 6. 数据类型
 
-### 7.1 支持的数据类型
+### 6.1 支持的数据类型
 
 树模型支持所有 IoTDB 数据类型:
 
@@ -645,11 +354,11 @@ const pool = new SessionPool(poolConfig);
 | 10 | BLOB | Buffer | 二进制数据 |
 | 11 | STRING | string | 与 TEXT 相同 |
 
-### 7.2 在 insertTablet 中使用数据类型
+### 6.2 在 insertTablet 中使用数据类型
 
 **多类型示例:**
 ```typescript
-await session.insertTablet({
+await pool.insertTablet({
   deviceId: 'root.test.sensor1',
   measurements: ['temp', 'humidity', 'status', 'description', 'reading_time'],
   dataTypes: [3, 4, 0, 5, 8], // FLOAT, DOUBLE, BOOLEAN, TEXT, TIMESTAMP
@@ -664,12 +373,12 @@ await session.insertTablet({
 });
 ```
 
-### 7.3 处理 INT64
+### 6.3 处理 INT64
 
 对于大于 JavaScript 安全整数范围(2^53 - 1)的 INT64 值,使用字符串:
 
 ```typescript
-await session.insertTablet({
+await pool.insertTablet({
   deviceId: 'root.test.device1',
   measurements: ['largeCounter'],
   dataTypes: [2], // INT64
@@ -678,32 +387,32 @@ await session.insertTablet({
 });
 ```
 
-## 8. 代码示例
+## 7. 代码示例
 
-### 8.1 完整的 CRUD 示例
+### 7.1 完整的 CRUD 示例
 
 ```typescript
-import { Session } from 'iotdb-client-nodejs';
+import { SessionPool } from 'iotdb-client-nodejs';
 
 async function crudExample() {
-  const session = new Session({
-    host: 'localhost',
-    port: 6667,
+  const pool = new SessionPool('localhost', 6667, {
     username: 'root',
     password: 'root',
+    maxPoolSize: 10,
+    minPoolSize: 2,
   });
   
-  await session.open();
+  await pool.init();
   
   try {
     // 创建(CREATE)
-    await session.executeNonQueryStatement('CREATE DATABASE root.factory');
-    await session.executeNonQueryStatement(
+    await pool.executeNonQueryStatement('CREATE DATABASE root.factory');
+    await pool.executeNonQueryStatement(
       'CREATE TIMESERIES root.factory.workshop1.temperature WITH DATATYPE=FLOAT'
     );
     
     // 插入(INSERT)
-    await session.insertTablet({
+    await pool.insertTablet({
       deviceId: 'root.factory.workshop1',
       measurements: ['temperature'],
       dataTypes: [3],
@@ -712,34 +421,29 @@ async function crudExample() {
     });
     
     // 读取(READ)
-    const dataSet = await session.executeQueryStatement(
+    const result = await pool.executeQueryStatement(
       'SELECT temperature FROM root.factory.workshop1'
     );
     
-    console.log('Temperature readings:');
-    while (await dataSet.hasNext()) {
-      const row = dataSet.next();
-      console.log(`  ${new Date(row.getTimestamp())}: ${row.getFloat('temperature')}°C`);
-    }
-    await dataSet.close();
+    console.log('Temperature readings:', result);
     
     // 更新(UPDATE) - 删除并重新插入
-    await session.executeNonQueryStatement(
+    await pool.executeNonQueryStatement(
       `DELETE FROM root.factory.workshop1.temperature WHERE time <= ${Date.now() - 2500}`
     );
     
     // 删除(DELETE)
-    await session.executeNonQueryStatement('DELETE DATABASE root.factory');
+    await pool.executeNonQueryStatement('DELETE DATABASE root.factory');
     
   } finally {
-    await session.close();
+    await pool.close();
   }
 }
 
 crudExample();
 ```
 
-### 8.2 多节点 SessionPool 示例
+### 7.2 多节点 SessionPool 示例
 
 ```typescript
 import { SessionPool, PoolConfigBuilder } from 'iotdb-client-nodejs';
@@ -794,33 +498,23 @@ async function multiNodeExample() {
 multiNodeExample();
 ```
 
-### 8.3 时间范围查询示例
+### 7.3 时间范围查询示例
 
 ```typescript
-async function timeRangeQuery(session: Session) {
+async function timeRangeQuery(pool: SessionPool) {
   const now = Date.now();
   const hourAgo = now - 3600000;
   
-  const dataSet = await session.executeQueryStatement(
+  const result = await pool.executeQueryStatement(
     `SELECT temperature, humidity FROM root.test.** WHERE time >= ${hourAgo} AND time <= ${now}`
   );
   
-  const results = [];
-  while (await dataSet.hasNext()) {
-    const row = dataSet.next();
-    results.push({
-      timestamp: new Date(row.getTimestamp()),
-      temperature: row.getFloat('temperature'),
-      humidity: row.getFloat('humidity'),
-    });
-  }
-  
-  await dataSet.close();
-  return results;
+  console.log('Query result:', result);
+  return result;
 }
 ```
 
-### 8.4 多设备批量插入
+### 7.4 多设备批量插入
 
 ```typescript
 async function batchInsertMultipleDevices(pool: SessionPool) {
@@ -852,44 +546,12 @@ async function batchInsertMultipleDevices(pool: SessionPool) {
 }
 ```
 
-## 9. 最佳实践
+## 8. 最佳实践
 
-### 9.1 Session vs SessionPool
-
-**使用 Session 的场景:**
-- 单线程应用程序
-- 低查询频率
-- 需要显式连接控制
-- 调试或开发环境
-
-**使用 SessionPool 的场景:**
-- 高并发场景
-- 多个并发客户端
-- 生产环境
-- 需要跨节点负载均衡
-
-### 9.2 资源管理
+### 8.1 资源管理
 
 **始终关闭资源:**
 ```typescript
-// Sessions
-try {
-  await session.open();
-  // ... 操作
-} finally {
-  await session.close();
-}
-
-// SessionDataSet
-const dataSet = await session.executeQueryStatement('...');
-try {
-  while (await dataSet.hasNext()) {
-    // ... 处理行
-  }
-} finally {
-  await dataSet.close();
-}
-
 // SessionPool
 try {
   await pool.init();
@@ -899,7 +561,7 @@ try {
 }
 ```
 
-### 9.3 批量插入
+### 8.2 批量插入
 
 **优化批量大小:**
 - 使用 `insertTablet` 而不是单条插入
@@ -909,7 +571,7 @@ try {
 **示例:**
 ```typescript
 // 好的做法: 批量插入
-await session.insertTablet({
+await pool.insertTablet({
   deviceId: 'root.test.device1',
   measurements: ['temperature'],
   dataTypes: [3],
@@ -919,18 +581,18 @@ await session.insertTablet({
 
 // 不好的做法: 单条插入
 for (let i = 0; i < 1000; i++) {
-  await session.executeNonQueryStatement(
+  await pool.executeNonQueryStatement(
     `INSERT INTO root.test.device1(timestamp, temperature) VALUES(${timestamps[i]}, ${values[i]})`
   );
 }
 ```
 
-### 9.4 错误处理
+### 8.3 错误处理
 
 ```typescript
 try {
-  await session.open();
-  await session.executeNonQueryStatement('CREATE DATABASE root.test');
+  await pool.init();
+  await pool.executeNonQueryStatement('CREATE DATABASE root.test');
 } catch (error) {
   if (error.message.includes('already exists')) {
     console.log('Database already exists, continuing...');
@@ -939,13 +601,11 @@ try {
     throw error;
   }
 } finally {
-  if (session.isOpen()) {
-    await session.close();
-  }
+  await pool.close();
 }
 ```
 
-### 9.5 连接池大小设置
+### 8.4 连接池大小设置
 
 **指导原则:**
 - 将 `minPoolSize` 设置为平均并发负载
@@ -964,9 +624,9 @@ const pool = new SessionPool({
 });
 ```
 
-## 10. 故障排查
+## 9. 故障排查
 
-### 10.1 常见问题
+### 9.1 常见问题
 
 #### 连接被拒绝
 
@@ -980,21 +640,6 @@ Error: connect ECONNREFUSED 127.0.0.1:6667
 2. 检查 `iotdb-datanode.properties` 中的端口配置
 3. 验证防火墙允许连接
 4. 使用 telnet 测试: `telnet localhost 6667`
-
-#### Session 已存在
-
-**症状:**
-```
-Error: Session already exists
-```
-
-**解决方案:**
-```typescript
-if (session.isOpen()) {
-  await session.close();
-}
-await session.open();
-```
 
 #### 连接池超时
 
@@ -1017,12 +662,11 @@ FATAL ERROR: Reached heap limit
 ```
 
 **解决方案:**
-1. 减少 session 配置中的 `fetchSize`
+1. 减少连接池配置中的 `fetchSize`
 2. 分批处理查询结果
-3. 对大结果使用 `hasNext()`/`next()` 而不是 `toArray()`
-4. 增加 Node.js 堆: `node --max-old-space-size=4096 app.js`
+3. 增加 Node.js 堆: `node --max-old-space-size=4096 app.js`
 
-### 10.2 调试技巧
+### 9.2 调试技巧
 
 **启用调试日志:**
 ```typescript
@@ -1036,27 +680,27 @@ logger.setLevel('debug');
 
 **检查连接状态:**
 ```typescript
-console.log('Session open:', session.isOpen());
 console.log('Pool size:', pool.getPoolSize());
 console.log('Available:', pool.getAvailableSize());
+console.log('In Use:', pool.getInUseSize());
 ```
 
 **测试查询执行时间:**
 ```typescript
 const start = Date.now();
-const dataSet = await session.executeQueryStatement('SELECT ...');
+const result = await pool.executeQueryStatement('SELECT ...');
 console.log(`Query took ${Date.now() - start}ms`);
 ```
 
-### 10.3 性能优化
+### 9.3 性能优化
 
-1. **使用适当的 fetchSize**: 平衡内存与往返次数
-2. **启用连接池**: 用于并发操作
-3. **批量插入**: 使用 insertTablet,100-1000 行
-4. **多节点设置**: 在节点间分配负载
-5. **监控资源**: 关注 CPU、内存、网络
+1. **启用连接池**: 用于并发操作
+2. **批量插入**: 使用 insertTablet,100-1000 行
+3. **多节点设置**: 在节点间分配负载
+4. **监控资源**: 关注 CPU、内存、网络
+5. **调整连接池大小**: 根据工作负载设置最小/最大连接池大小
 
-### 10.4 获取帮助
+### 9.4 获取帮助
 
 - **文档**: [IoTDB Docs](https://iotdb.apache.org/)
 - **GitHub Issues**: [报告问题](https://github.com/CritasWang/iotdb-client-nodejs/issues)
@@ -1067,14 +711,6 @@ console.log(`Query took ${Date.now() - start}ms`);
 详见 [data-types.md](data-types.md) 了解全面的数据类型文档。
 
 ## 附录 B: API 快速参考
-
-### Session 方法
-- `open()` - 打开连接
-- `close()` - 关闭连接
-- `isOpen()` - 检查连接状态
-- `executeQueryStatement(sql, timeout?)` - 执行查询
-- `executeNonQueryStatement(sql)` - 执行 DDL/DML
-- `insertTablet(tablet)` - 批量插入
 
 ### SessionPool 方法
 - `init()` - 初始化连接池
