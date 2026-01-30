@@ -35,3 +35,5 @@ export {
 } from "./utils/Config";
 export { logger, LogLevel } from "./utils/Logger";
 export { TSDataType, getDataTypeName } from "./utils/DataTypes";
+export { RedirectException, TSStatusCode } from "./utils/Errors";
+export { RedirectCache } from "./client/RedirectCache";

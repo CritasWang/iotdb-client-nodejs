@@ -76,6 +76,30 @@ export interface PoolConfig extends Config {
   minPoolSize?: number;
   maxIdleTime?: number;
   waitTimeout?: number;
+
+  /**
+   * Enable automatic redirection for write operations.
+   * When enabled, the client caches device-to-endpoint mappings
+   * and routes subsequent writes directly to optimal nodes.
+   *
+   * @default true
+   */
+  enableRedirection?: boolean;
+
+  /**
+   * Maximum number of redirect retries before failing.
+   *
+   * @default 3
+   */
+  maxRedirectRetries?: number;
+
+  /**
+   * Time-to-live for cached redirect mappings (ms).
+   * Set to 0 for no expiration.
+   *
+   * @default 300000 (5 minutes)
+   */
+  redirectCacheTTL?: number;
 }
 
 export const DEFAULT_CONFIG: Partial<Config> = {
@@ -93,6 +117,9 @@ export const DEFAULT_POOL_CONFIG: Partial<PoolConfig> = {
   minPoolSize: 1,
   maxIdleTime: 60000, // 60 seconds
   waitTimeout: 60000, // 60 seconds
+  enableRedirection: true,
+  maxRedirectRetries: 3,
+  redirectCacheTTL: 300000, // 5 minutes
 };
 
 /**
