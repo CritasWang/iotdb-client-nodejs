@@ -280,10 +280,22 @@ export class Session {
   }
 
   /**
-   * Insert tree model tablet (timeseries model)
-   * @param tablet TreeTablet with deviceId, measurements, dataTypes, timestamps, values
+   * Insert tablet (supports both tree and table models)
+   * @param tablet TreeTablet for tree model or TableTablet for table model
    */
-  async insertTablet(tablet: TreeTablet): Promise<void> {
+  async insertTablet(tablet: TreeTablet | TableTablet): Promise<void> {
+    // Check if it's a TableTablet
+    if ('tableName' in tablet) {
+      return this.insertTableTabletInternal(tablet as TableTablet);
+    } else {
+      return this.insertTreeTabletInternal(tablet as TreeTablet);
+    }
+  }
+
+  /**
+   * Internal method to insert tree model tablet
+   */
+  private async insertTreeTabletInternal(tablet: TreeTablet): Promise<void> {
     logger.debug(`Inserting tree tablet for device: ${tablet.deviceId}`);
 
     const client = this.connection.getClient();
@@ -327,6 +339,75 @@ export class Session {
 
         if (response.code !== 200) {
           reject(new Error(response.message || "Insert tablet failed"));
+          return;
+        }
+
+        resolve();
+      });
+    });
+  }
+
+  /**
+   * Internal method to insert table model tablet
+   */
+  private async insertTableTabletInternal(tablet: TableTablet): Promise<void> {
+    logger.debug(`Inserting table tablet for table: ${tablet.tableName}`);
+
+    const client = this.connection.getClient();
+    const sessionId = this.connection.getSessionId();
+
+    // Validate timestamps and convert to BigInt
+    const bigIntTimestamps = tablet.timestamps.map((t) => {
+      if (typeof t !== "number" || !Number.isFinite(t)) {
+        throw new Error(`Invalid timestamp: ${t}`);
+      }
+      return BigInt(Math.floor(t));
+    });
+
+    // Serialize timestamps in big-endian format
+    const timestampBuffer = Buffer.alloc(bigIntTimestamps.length * 8);
+    bigIntTimestamps.forEach((ts, i) => {
+      timestampBuffer.writeBigInt64BE(ts, i * 8);
+    });
+
+    // For table model, extract measurements (non-TIME columns)
+    const measurements: string[] = [];
+    const measurementTypes: number[] = [];
+    
+    tablet.columnNames.forEach((name, i) => {
+      const category = tablet.columnCategories[i];
+      // Include TAG, FIELD, and ATTRIBUTE columns
+      // Exclude TIME column as it's handled separately
+      if (category !== ColumnCategory.TIME) {
+        measurements.push(name);
+        measurementTypes.push(tablet.columnTypes[i]);
+      }
+    });
+
+    const req = new ttypes.TSInsertTabletReq({
+      sessionId: sessionId,
+      prefixPath: tablet.tableName,
+      measurements: measurements,
+      values: this.serializeTabletValues(
+        tablet.values,
+        tablet.columnTypes,
+        tablet.timestamps.length,
+      ),
+      timestamps: timestampBuffer,
+      types: tablet.columnTypes,
+      size: tablet.timestamps.length,
+      isAligned: false,
+    });
+
+    return new Promise((resolve, reject) => {
+      client.insertTablet(req, (err: Error, response: any) => {
+        if (err) {
+          reject(err);
+          return;
+        }
+
+        if (response.code !== 200) {
+          reject(new Error(response.message || "Insert table tablet failed"));
           return;
         }
 

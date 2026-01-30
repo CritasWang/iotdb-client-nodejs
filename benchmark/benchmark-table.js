@@ -22,7 +22,7 @@
  * Table Model Benchmark
  * 
  * Performance benchmark for IoTDB table model (relational model).
- * Tests write operations using insertTableTablet API with pre-generated data.
+ * Tests write operations using insertTablet API with pre-generated data.
  * 
  * Usage:
  *   node benchmark-table.js [options]
@@ -163,9 +163,9 @@ async function executeWrite(pool, work, session = null) {
   
   // Use bound session if provided, otherwise use pool
   if (session) {
-    await session.insertTableTablet(tablet);
+    await session.insertTablet(tablet);
   } else {
-    await pool.insertTableTablet(tablet);
+    await pool.insertTablet(tablet);
   }
   
   // Return number of data points written

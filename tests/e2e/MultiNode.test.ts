@@ -176,7 +176,7 @@ describe("Multi-Node E2E Tests", () => {
     for (let i = 0; i < operationsPerNode; i++) {
       // Insert to DataNode 1
       promises.push(
-        pool1.insertTreeTablet({
+        pool1.insertTablet({
           deviceId: "root.test.device1",
           measurements: ["temperature", "humidity"],
           dataTypes: [TSDataType.FLOAT, TSDataType.FLOAT],
@@ -192,7 +192,7 @@ describe("Multi-Node E2E Tests", () => {
 
       // Insert to DataNode 3
       promises.push(
-        pool3.insertTreeTablet({
+        pool3.insertTablet({
           deviceId: "root.test.device1",
           measurements: ["temperature", "humidity"],
           dataTypes: [TSDataType.FLOAT, TSDataType.FLOAT],
@@ -227,7 +227,7 @@ describe("Multi-Node E2E Tests", () => {
     }
 
     // Insert data through DataNode 1
-    await pool1.insertTreeTablet({
+    await pool1.insertTablet({
       deviceId: "root.test.device1",
       measurements: ["temperature", "humidity"],
       dataTypes: [TSDataType.FLOAT, TSDataType.FLOAT],
@@ -298,7 +298,7 @@ describe("Multi-Node E2E Tests", () => {
     }
 
     // Insert through different DataNodes
-    await pool1.insertTreeTablet({
+    await pool1.insertTablet({
       deviceId: "root.test.device1",
       measurements: ["temperature", "humidity"],
       dataTypes: [TSDataType.FLOAT, TSDataType.FLOAT],
@@ -362,7 +362,7 @@ describe("Multi-Node E2E Tests", () => {
     }
 
     // First insert some data to ensure there's something to query
-    await pool1.insertTreeTablet({
+    await pool1.insertTablet({
       deviceId: "root.test.device1",
       measurements: ["temperature", "humidity"],
       dataTypes: [TSDataType.FLOAT, TSDataType.FLOAT],

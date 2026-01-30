@@ -57,7 +57,7 @@ async function main() {
 
     // Insert tablet data using new TreeTablet interface
     console.log("\nInserting tree tablet data...");
-    await session.insertTreeTablet({
+    await session.insertTablet({
       deviceId: "root.example.device1",
       measurements: ["temperature", "humidity"],
       dataTypes: [TSDataType.FLOAT, TSDataType.FLOAT],

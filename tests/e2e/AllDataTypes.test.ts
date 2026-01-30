@@ -217,7 +217,7 @@ describe("All Data Types E2E Tests", () => {
       ],
     };
 
-    await session.insertTreeTablet(tablet);
+    await session.insertTablet(tablet);
     console.log("Inserted data with all data types");
 
     // Query the data back - get latest 3 rows
@@ -344,7 +344,7 @@ describe("All Data Types E2E Tests", () => {
       ],
     };
 
-    await session.insertTreeTablet(tablet);
+    await session.insertTablet(tablet);
 
     // Query to verify
     const dataSet = await session.executeQueryStatement(
@@ -419,7 +419,7 @@ describe("All Data Types E2E Tests", () => {
       values,
     };
 
-    await session.insertTreeTablet(tablet);
+    await session.insertTablet(tablet);
     console.log(`Inserted ${rowCount} rows with mixed data types`);
 
     // Query and verify

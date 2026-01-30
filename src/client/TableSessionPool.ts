@@ -18,7 +18,7 @@
  */
 
 import { TableSession } from './TableSession';
-import { Session, TableTablet } from './Session';
+import { Session, TableTablet, TreeTablet } from './Session';
 import { PoolConfig, SQL_DIALECT_TABLE, InternalConfig } from '../utils/Config';
 import { BaseSessionPool } from './BaseSessionPool';
 
@@ -70,11 +70,11 @@ export class TableSessionPool extends BaseSessionPool {
   }
 
   /**
-   * Insert table model tablet using polymorphic insertTablet method
-   * @param tablet TableTablet with tableName, columnNames, columnTypes, columnCategories, timestamps, values
+   * Insert tablet (supports both tree and table models, but typically used for TableTablet)
+   * @param tablet TreeTablet or TableTablet
    */
-  async insertTablet(tablet: TableTablet): Promise<void> {
-    const session = await this.getSession() as TableSession;
+  async insertTablet(tablet: TreeTablet | TableTablet): Promise<void> {
+    const session = await this.getSession();
     try {
       return await session.insertTablet(tablet);
     } finally {

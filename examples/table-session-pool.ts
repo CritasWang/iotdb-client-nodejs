@@ -91,7 +91,7 @@ async function main() {
 
     // Insert data using new TableTablet interface
     console.log("Inserting table data...");
-    await pool.insertTableTablet({
+    await pool.insertTablet({
       tableName: "table1",
       columnNames: ["device_id", "timestamp", "column1", "column2"],
       columnTypes: [TSDataType.TEXT, TSDataType.TIMESTAMP, TSDataType.INT32, TSDataType.FLOAT],
@@ -120,7 +120,7 @@ async function main() {
       console.log("Query result:", rowCount, "rows");
 
       // Insert with explicit session using TableTablet
-      await session.insertTableTablet({
+      await session.insertTablet({
         tableName: "table1",
         columnNames: ["device_id", "timestamp", "column1", "column2"],
         columnTypes: [TSDataType.TEXT, TSDataType.TIMESTAMP, TSDataType.INT32, TSDataType.FLOAT],

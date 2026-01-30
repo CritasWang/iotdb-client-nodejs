@@ -86,7 +86,7 @@ async function main() {
       console.log("Executing operations with explicit session...");
 
       // Insert data
-      await session.insertTreeTablet({
+      await session.insertTablet({
         deviceId: "root.pool_example.sensor1",
         measurements: ["value"],
         dataTypes: [TSDataType.FLOAT],

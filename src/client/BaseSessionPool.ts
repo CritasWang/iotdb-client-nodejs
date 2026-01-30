@@ -17,7 +17,7 @@
  * under the License.
  */
 
-import { Session, QueryResult, TreeTablet, SessionDataSet } from "./Session";
+import { Session, QueryResult, TreeTablet, TableTablet, SessionDataSet } from "./Session";
 import {
   PoolConfig,
   DEFAULT_POOL_CONFIG,
@@ -272,10 +272,10 @@ export abstract class BaseSessionPool {
   }
 
   /**
-   * Insert tree model tablet (for SessionPool)
-   * @param tablet TreeTablet with deviceId, measurements, dataTypes, timestamps, values
+   * Insert tablet (supports both tree and table models)
+   * @param tablet TreeTablet for tree model or TableTablet for table model
    */
-  async insertTablet(tablet: TreeTablet): Promise<void> {
+  async insertTablet(tablet: TreeTablet | TableTablet): Promise<void> {
     const session = await this.getSession();
     try {
       return await session.insertTablet(tablet);
