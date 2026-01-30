@@ -58,10 +58,10 @@ export enum ColumnCategory {
 }
 
 /**
- * Tree model tablet - for timeseries model
+ * Tree model tablet interface - for timeseries model
  * Uses deviceId as the full path (e.g., "root.sg.device")
  */
-export interface TreeTablet {
+export interface ITreeTablet {
   deviceId: string;
   measurements: string[];
   dataTypes: number[];
@@ -70,16 +70,98 @@ export interface TreeTablet {
 }
 
 /**
- * Table model tablet - for relational/table model
+ * Table model tablet interface - for relational/table model
  * Uses tableName and includes column categories
  */
-export interface TableTablet {
+export interface ITableTablet {
   tableName: string;
   columnNames: string[];
   columnTypes: number[];
   columnCategories: ColumnCategory[];
   timestamps: number[];
   values: any[][];
+}
+
+/**
+ * Tree model tablet class with helper methods
+ * Convenient for building tablets row-by-row
+ */
+export class TreeTablet implements ITreeTablet {
+  deviceId: string;
+  measurements: string[];
+  dataTypes: number[];
+  timestamps: number[];
+  values: any[][];
+
+  constructor(deviceId: string, measurements: string[], dataTypes: number[]) {
+    this.deviceId = deviceId;
+    this.measurements = measurements;
+    this.dataTypes = dataTypes;
+    this.timestamps = [];
+    this.values = [];
+  }
+
+  /**
+   * Add a row to the tablet
+   * @param timestamp - The timestamp for this row
+   * @param values - Array of values, must match the length of measurements
+   */
+  addRow(timestamp: number, values: any[]): void {
+    if (values.length !== this.measurements.length) {
+      throw new Error(
+        `Values array length (${values.length}) does not match measurements length (${this.measurements.length})`
+      );
+    }
+    this.timestamps.push(timestamp);
+    this.values.push(values);
+  }
+}
+
+/**
+ * Table model tablet class with helper methods
+ * Convenient for building tablets row-by-row
+ */
+export class TableTablet implements ITableTablet {
+  tableName: string;
+  columnNames: string[];
+  columnTypes: number[];
+  columnCategories: ColumnCategory[];
+  timestamps: number[];
+  values: any[][];
+
+  constructor(
+    tableName: string,
+    columnNames: string[],
+    columnTypes: number[],
+    columnCategories: ColumnCategory[]
+  ) {
+    if (columnNames.length !== columnTypes.length || columnNames.length !== columnCategories.length) {
+      throw new Error(
+        'columnNames, columnTypes, and columnCategories must have the same length'
+      );
+    }
+    this.tableName = tableName;
+    this.columnNames = columnNames;
+    this.columnTypes = columnTypes;
+    this.columnCategories = columnCategories;
+    this.timestamps = [];
+    this.values = [];
+  }
+
+  /**
+   * Add a row to the tablet
+   * @param timestamp - The timestamp for this row
+   * @param values - Array of values, must match the length of columnNames
+   */
+  addRow(timestamp: number, values: any[]): void {
+    if (values.length !== this.columnNames.length) {
+      throw new Error(
+        `Values array length (${values.length}) does not match columnNames length (${this.columnNames.length})`
+      );
+    }
+    this.timestamps.push(timestamp);
+    this.values.push(values);
+  }
 }
 
 /**
@@ -286,19 +368,19 @@ export class Session {
    * Insert tablet (supports both tree and table models)
    * @param tablet TreeTablet for tree model or TableTablet for table model
    */
-  async insertTablet(tablet: TreeTablet | TableTablet): Promise<void> {
+  async insertTablet(tablet: TreeTablet | ITreeTablet | TableTablet | ITableTablet): Promise<void> {
     // Check if it's a TableTablet
     if ('tableName' in tablet) {
-      return this.insertTableTabletInternal(tablet as TableTablet);
+      return this.insertTableTabletInternal(tablet as TableTablet | ITableTablet);
     } else {
-      return this.insertTreeTabletInternal(tablet as TreeTablet);
+      return this.insertTreeTabletInternal(tablet as TreeTablet | ITreeTablet);
     }
   }
 
   /**
    * Internal method to insert tree model tablet
    */
-  private async insertTreeTabletInternal(tablet: TreeTablet): Promise<void> {
+  private async insertTreeTabletInternal(tablet: TreeTablet | ITreeTablet): Promise<void> {
     logger.debug(`Inserting tree tablet for device: ${tablet.deviceId}`);
 
     const client = this.connection.getClient();
@@ -353,7 +435,7 @@ export class Session {
   /**
    * Internal method to insert table model tablet
    */
-  private async insertTableTabletInternal(tablet: TableTablet): Promise<void> {
+  private async insertTableTabletInternal(tablet: TableTablet | ITableTablet): Promise<void> {
     logger.debug(`Inserting table tablet for table: ${tablet.tableName}`);
 
     const client = this.connection.getClient();

@@ -17,8 +17,8 @@
  * under the License.
  */
 
-export { Session } from "./client/Session";
-export type { QueryResult, Tablet, TreeTablet, TableTablet } from "./client/Session";
+export { Session, TreeTablet, TableTablet } from "./client/Session";
+export type { QueryResult, Tablet, ITreeTablet, ITableTablet } from "./client/Session";
 export { ColumnCategory } from "./client/Session";
 export { TableSession } from "./client/TableSession";
 export { SessionDataSet } from "./client/SessionDataSet";
