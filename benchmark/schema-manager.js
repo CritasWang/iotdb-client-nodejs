@@ -156,19 +156,17 @@ async function createTableModelSchema(session, testData, config) {
       // Ignore if table doesn't exist
     }
 
-    // Build CREATE TABLE statement
-    const columns = [];
-    for (let i = 0; i < testData.schema.columns.length; i++) {
-      const columnName = testData.schema.columns[i];
-      const dataType = testData.schema.columnTypes[i];
-      const typeString = getDataTypeString(dataType);
-      
-      if (columnName === 'device_id') {
-        columns.push(`${columnName} ${typeString} ID`);
-      } else if (columnName === 'timestamp') {
-        columns.push(`${columnName} ${typeString}`);
-      } else {
-        columns.push(`${columnName} ${typeString}`);
+    // Build CREATE TABLE statement from device structure
+    const columns = ['device_id STRING ID', 'timestamp TIMESTAMP'];
+    
+    // Add sensor columns from first device (all devices have same structure)
+    if (testData.devices && testData.devices.length > 0) {
+      const device = testData.devices[0];
+      for (let i = 0; i < device.measurements.length; i++) {
+        const measurementName = device.measurements[i];
+        const dataType = device.dataTypes[i];
+        const typeString = getDataTypeString(dataType);
+        columns.push(`${measurementName} ${typeString}`);
       }
     }
 

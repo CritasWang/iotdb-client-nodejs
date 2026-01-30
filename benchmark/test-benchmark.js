@@ -85,12 +85,16 @@ async function testTableModel() {
   
   // Test data generation
   const testData = await prepareTestData(config, 'table');
-  console.log(`✓ Test data generated: ${testData.batches.length} batches`);
-  console.log(`  - Columns: ${testData.schema.columns.length}`);
-  console.log(`  - Rows per batch: ${testData.batches[0].rows.length}`);
+  console.log(`✓ Test data generated: ${testData.devices.length} devices`);
+  console.log(`  - Measurements per device: ${testData.devices[0].measurements.length}`);
+  console.log(`  - Batches per device: ${testData.devices[0].batches.length}`);
+  console.log(`  - Rows per batch: ${testData.devices[0].batches[0].timestamps.length}`);
   
   // Test workload generation
-  const workloadCount = testData.batches.length;
+  let workloadCount = 0;
+  for (const device of testData.devices) {
+    workloadCount += device.batches.length;
+  }
   console.log(`✓ Workload: ${workloadCount} operations total`);
   
   // Test metrics collection

@@ -7,7 +7,7 @@ Comprehensive performance testing tools for Apache IoTDB Node.js client, inspire
 This benchmark suite provides two specialized tools for testing IoTDB write performance:
 
 - **Tree Model Benchmark** (`benchmark-tree.js`) - Tests timeseries data model using `insertTablet` API
-- **Table Model Benchmark** (`benchmark-table.js`) - Tests relational data model using SQL INSERT statements
+- **Table Model Benchmark** (`benchmark-table.js`) - Tests relational data model using `insertTablet` API
 
 ### Key Features
 

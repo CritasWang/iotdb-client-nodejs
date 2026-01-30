@@ -239,10 +239,12 @@ function generateTableModelData(config) {
     LOOP,
   } = config;
 
+  const devices = [];
+  
   // Calculate batches based on LOOP or TOTAL_DATA_POINTS
   let batchCount;
   if (LOOP !== null) {
-    // When using LOOP mode, we generate one batch (used LOOP times)
+    // When using LOOP mode, we generate one batch per device (used LOOP times)
     batchCount = 1;
   } else {
     // Legacy mode: calculate based on total data points
@@ -253,47 +255,56 @@ function generateTableModelData(config) {
   // Distribute sensor types
   const sensorTypes = distributeSensorTypes(SENSOR_NUMBER, INSERT_DATATYPE_PROPORTION);
 
-  // Column definitions for table model
-  const columns = ['device_id', 'timestamp'];
-  const columnTypes = [TSDataType.TEXT, TSDataType.TIMESTAMP];
-  
-  for (let sensorIdx = 0; sensorIdx < SENSOR_NUMBER; sensorIdx++) {
-    columns.push(`sensor_${sensorIdx}`);
-    columnTypes.push(sensorTypes[sensorIdx]);
-  }
+  for (let deviceIdx = 0; deviceIdx < DEVICE_NUMBER; deviceIdx++) {
+    const deviceId = `device_${deviceIdx}`;
+    const measurements = [];
+    const dataTypes = [];
 
-  // Generate data batches
-  const batches = [];
-  for (let batchIdx = 0; batchIdx < batchCount; batchIdx++) {
-    const batchSize = LOOP !== null ? BATCH_SIZE_PER_WRITE : Math.min(
-      BATCH_SIZE_PER_WRITE,
-      Math.floor(TOTAL_DATA_POINTS / DEVICE_NUMBER) - batchIdx * BATCH_SIZE_PER_WRITE
-    );
-
-    const rows = [];
-    const baseTimestamp = 0;
-
-    for (let rowIdx = 0; rowIdx < batchSize; rowIdx++) {
-      for (let deviceIdx = 0; deviceIdx < DEVICE_NUMBER; deviceIdx++) {
-        const row = [
-          `device_${deviceIdx}`,
-          baseTimestamp + rowIdx * POINT_STEP,
-        ];
-
-        // Generate sensor values
-        for (let sensorIdx = 0; sensorIdx < SENSOR_NUMBER; sensorIdx++) {
-          const value = generateValue(columnTypes[sensorIdx + 2], config);
-          row.push(value);
-        }
-
-        rows.push(row);
-      }
+    // Create sensor metadata
+    for (let sensorIdx = 0; sensorIdx < SENSOR_NUMBER; sensorIdx++) {
+      measurements.push(`sensor_${sensorIdx}`);
+      dataTypes.push(sensorTypes[sensorIdx]);
     }
 
-    batches.push({ rows });
+    // Generate data batches
+    const batches = [];
+    for (let batchIdx = 0; batchIdx < batchCount; batchIdx++) {
+      const batchSize = LOOP !== null ? BATCH_SIZE_PER_WRITE : Math.min(
+        BATCH_SIZE_PER_WRITE,
+        Math.floor(TOTAL_DATA_POINTS / DEVICE_NUMBER) - batchIdx * BATCH_SIZE_PER_WRITE
+      );
 
-    if ((batchIdx + 1) % 10 === 0 || batchIdx === batchCount - 1) {
-      console.log(`  Generated ${batchIdx + 1}/${batchCount} batches`);
+      const timestamps = [];
+      const values = Array(batchSize).fill(null).map(() => []);
+
+      // Base timestamp (will be updated during actual test)
+      const baseTimestamp = 0;
+
+      for (let rowIdx = 0; rowIdx < batchSize; rowIdx++) {
+        timestamps.push(baseTimestamp + rowIdx * POINT_STEP);
+        
+        // Generate values for each sensor
+        for (let sensorIdx = 0; sensorIdx < SENSOR_NUMBER; sensorIdx++) {
+          const value = generateValue(dataTypes[sensorIdx], config);
+          values[rowIdx].push(value);
+        }
+      }
+
+      batches.push({
+        timestamps,
+        values,
+      });
+    }
+
+    devices.push({
+      deviceId,
+      measurements,
+      dataTypes,
+      batches,
+    });
+
+    if ((deviceIdx + 1) % 10 === 0 || deviceIdx === DEVICE_NUMBER - 1) {
+      console.log(`  Generated data for ${deviceIdx + 1}/${DEVICE_NUMBER} devices`);
     }
   }
 
@@ -309,11 +320,7 @@ function generateTableModelData(config) {
       POINT_STEP,
       LOOP,
     },
-    schema: {
-      columns,
-      columnTypes,
-    },
-    batches,
+    devices,
   };
 }
 

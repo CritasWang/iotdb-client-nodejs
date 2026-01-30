@@ -1069,7 +1069,7 @@ Comprehensive benchmark tools are available in the `benchmark/` directory for pe
 ### Overview
 
 - **Tree Model Benchmark**: Tests timeseries data model using `insertTablet` API
-- **Table Model Benchmark**: Tests relational data model using SQL INSERT statements
+- **Table Model Benchmark**: Tests relational data model using `insertTablet` API
 - **Pre-generated Data**: Eliminates data generation overhead during testing
 - **Concurrent Clients**: Simulates real-world high-concurrency scenarios
 - **Detailed Metrics**: Throughput, latency, percentiles (P50, P90, P95, P99)

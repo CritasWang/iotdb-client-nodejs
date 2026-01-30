@@ -22,7 +22,7 @@
  * Table Model Benchmark
  * 
  * Performance benchmark for IoTDB table model (relational model).
- * Tests write operations using INSERT statements with pre-generated data.
+ * Tests write operations using insertTablet API with pre-generated data.
  * 
  * Usage:
  *   node benchmark-table.js [options]
@@ -86,25 +86,33 @@ function generateWorkload(testData, config) {
   const workload = [];
   
   if (config.LOOP !== null) {
-    // Loop-based execution: repeat the batch LOOP times
+    // Loop-based execution: each loop writes one batch for all devices
     for (let loopIdx = 0; loopIdx < config.LOOP; loopIdx++) {
-      for (const batch of testData.batches) {
+      for (const device of testData.devices) {
+        // Each device has one batch in LOOP mode
+        const batch = device.batches[0];
         workload.push({
-          columns: testData.schema.columns,
-          rows: batch.rows,
-          tableName: testData.config.TABLE_NAME,
+          deviceId: device.deviceId,
+          measurements: device.measurements,
+          dataTypes: device.dataTypes,
+          timestamps: batch.timestamps,
+          values: batch.values,
           loopIndex: loopIdx,
         });
       }
     }
   } else {
-    // Legacy mode: all batches
-    for (const batch of testData.batches) {
-      workload.push({
-        columns: testData.schema.columns,
-        rows: batch.rows,
-        tableName: testData.config.TABLE_NAME,
-      });
+    // Legacy mode: all batches for all devices
+    for (const device of testData.devices) {
+      for (const batch of device.batches) {
+        workload.push({
+          deviceId: device.deviceId,
+          measurements: device.measurements,
+          dataTypes: device.dataTypes,
+          timestamps: batch.timestamps,
+          values: batch.values,
+        });
+      }
     }
   }
   
@@ -112,51 +120,34 @@ function generateWorkload(testData, config) {
 }
 
 /**
- * Format value for SQL
- * @param {*} value - Value to format
- * @returns {string} Formatted value
- */
-function formatValue(value) {
-  if (value === null || value === undefined) {
-    return 'NULL';
-  }
-  if (typeof value === 'string') {
-    return `'${value.replace(/'/g, "''")}'`;
-  }
-  if (typeof value === 'boolean') {
-    return value ? 'true' : 'false';
-  }
-  return String(value);
-}
-
-/**
  * Execute write operation for table model
  * @param {TableSessionPool} pool - Table session pool
  * @param {Object} work - Work item
+ * @param {Object} session - Optional bound session for device-session binding
  * @returns {number} Number of data points written
  */
-async function executeWrite(pool, work) {
+async function executeWrite(pool, work, session = null) {
   // Update timestamps to current time
   const now = Date.now();
-  const updatedRows = work.rows.map(row => {
-    const newRow = [...row];
-    // Update timestamp (column index 1)
-    newRow[1] = now + row[1];
-    return newRow;
-  });
+  const updatedTimestamps = work.timestamps.map((offset) => now + offset);
   
-  // Build batch INSERT statement
-  const columns = work.columns.join(', ');
-  const valuesList = updatedRows
-    .map(row => `(${row.map(formatValue).join(', ')})`)
-    .join(', ');
+  const tablet = {
+    deviceId: work.deviceId,
+    measurements: work.measurements,
+    dataTypes: work.dataTypes,
+    timestamps: updatedTimestamps,
+    values: work.values,
+  };
   
-  const sql = `INSERT INTO ${work.tableName} (${columns}) VALUES ${valuesList}`;
+  // Use bound session if provided, otherwise use pool
+  if (session) {
+    await session.insertTablet(tablet);
+  } else {
+    await pool.insertTablet(tablet);
+  }
   
-  await pool.executeNonQueryStatement(sql);
-  
-  // Return number of data points written (rows * columns, excluding device_id and timestamp)
-  return updatedRows.length * (work.columns.length - 2);
+  // Return number of data points written
+  return work.timestamps.length * work.measurements.length;
 }
 
 /**
@@ -178,7 +169,7 @@ async function main() {
     // Step 1: Prepare test data
     console.log('Step 1: Preparing test data...');
     const testData = await prepareTestData(config, 'table');
-    console.log(`✓ Test data ready: ${testData.batches.length} batches with ${config.SENSOR_NUMBER} sensors`);
+    console.log(`✓ Test data ready: ${testData.devices.length} devices with ${config.SENSOR_NUMBER} sensors each`);
 
     // Step 2: Create table session pool
     console.log('\nStep 2: Initializing table session pool...');
