@@ -589,14 +589,34 @@ export class Session {
       case 5: // TEXT
       case 11: {
         // STRING (similar to TEXT)
-        const strBuffers = values.map((v) => {
+        // Optimized: Pre-calculate total size to avoid multiple Buffer.concat calls
+        
+        // Phase 1: Convert all values to buffers and calculate total size
+        const strData: Buffer[] = [];
+        let totalSize = 0;
+        
+        for (const v of values) {
           const str = v === null || v === undefined ? "" : String(v);
           const strBytes = Buffer.from(str, "utf8");
-          const len = Buffer.alloc(4);
-          len.writeInt32BE(strBytes.length); // Write byte length in big-endian (Java standard)
-          return Buffer.concat([len, strBytes]);
-        });
-        return Buffer.concat(strBuffers);
+          strData.push(strBytes);
+          totalSize += 4 + strBytes.length; // 4 bytes for length + string bytes
+        }
+        
+        // Phase 2: Allocate single buffer and copy data
+        const result = Buffer.allocUnsafe(totalSize);
+        let offset = 0;
+        
+        for (const strBytes of strData) {
+          // Write length (4 bytes, big-endian)
+          result.writeInt32BE(strBytes.length, offset);
+          offset += 4;
+          
+          // Copy string bytes
+          strBytes.copy(result, offset);
+          offset += strBytes.length;
+        }
+        
+        return result;
       }
       case 8: {
         // TIMESTAMP (stored as INT64 - milliseconds)
@@ -632,49 +652,115 @@ export class Session {
       }
       case 10: {
         // BLOB
-        const blobBuffers = values.map((v) => {
+        // Optimized: Pre-calculate total size to avoid multiple Buffer.concat calls
+        
+        // Phase 1: Convert all values to buffers and calculate total size
+        const blobData: Buffer[] = [];
+        let totalSize = 0;
+        
+        for (const v of values) {
           const blob =
             v === null || v === undefined
               ? Buffer.alloc(0)
               : Buffer.isBuffer(v)
                 ? v
                 : Buffer.from(v);
-          const len = Buffer.alloc(4);
-          len.writeInt32BE(blob.length); // Write byte length in big-endian (Java standard)
-          return Buffer.concat([len, blob]);
-        });
-        return Buffer.concat(blobBuffers);
+          blobData.push(blob);
+          totalSize += 4 + blob.length; // 4 bytes for length + blob bytes
+        }
+        
+        // Phase 2: Allocate single buffer and copy data
+        const result = Buffer.allocUnsafe(totalSize);
+        let offset = 0;
+        
+        for (const blob of blobData) {
+          // Write length (4 bytes, big-endian)
+          result.writeInt32BE(blob.length, offset);
+          offset += 4;
+          
+          // Copy blob bytes
+          blob.copy(result, offset);
+          offset += blob.length;
+        }
+        
+        return result;
       }
       default:
         throw new Error(`Unsupported data type: ${dataType}`);
     }
   }
 
+  /**
+   * Serialize BitMap for null value indicators.
+   * 
+   * BitMap Serialization Format (compatible with Apache IoTDB Java client):
+   * 
+   * For each column:
+   *   1. columnHasNull flag (1 byte): 0=no nulls, 1=has nulls
+   *   2. If has nulls: bitmap array
+   *      - 8 values packed per byte (LSB-first bit ordering)
+   *      - Bit=1 means NULL, Bit=0 means NOT NULL
+   *      - Size = Math.ceil(rowCount / 8) bytes
+   *      - Padding: Remaining bits in last byte are set to 0
+   * 
+   * Example 1: rowCount=10, nulls at indices [1, 4, 6, 9]
+   *   Row indices:     0  1  2  3  4  5  6  7  | 8  9  (6 padding bits)
+   *   Null values:     0  1  0  0  1  0  1  0  | 0  1  0  0  0  0  0  0
+   *   Bit positions:   0  1  2  3  4  5  6  7  | 0  1  2  3  4  5  6  7
+   *   Binary (LSB):    01001010                 |    01000000
+   *   Hex:             0x52                     |    0x02
+   * 
+   * Example 2: rowCount=13, nulls at indices [0, 3, 8, 10]
+   *   Byte 1: indices 0-7  → binary 00001001 → 0x09
+   *   Byte 2: indices 8-12 → binary 00000101 → 0x05
+   * 
+   * Bit Ordering Details (LSB-first):
+   *   - Row index 0 maps to bit 0 (LSB) = 1 << 0 = 0x01
+   *   - Row index 1 maps to bit 1       = 1 << 1 = 0x02
+   *   - Row index 2 maps to bit 2       = 1 << 2 = 0x04
+   *   - Row index 3 maps to bit 3       = 1 << 3 = 0x08
+   *   - ...
+   *   - Row index 7 maps to bit 7 (MSB) = 1 << 7 = 0x80
+   * 
+   * This format is compatible with:
+   * - Java: org.apache.iotdb.session.tablet.Tablet.writeBitMaps()
+   * - C++: Session::getValue() with BitMap serialization
+   * - Python: Tablet.get_binary_values() with struct.pack
+   * 
+   * @param bitMaps - Array of boolean arrays (or null) for each column, true=null, false=not null
+   * @param rowCount - Number of rows in the tablet
+   * @returns Serialized bitmap buffer
+   */
   protected serializeBitMaps(
     bitMaps: (boolean[] | null)[],
     rowCount: number,
   ): Buffer {
-    // Serialize bitmap information for null values
-    // Format: for each column, one byte indicating if column has null, followed by bitmap bytes if it does
     const buffers: Buffer[] = [];
 
     for (const bitMap of bitMaps) {
       const columnHasNull = bitMap !== null;
-      // Write one byte: 1 if column has null, 0 if not
+      
+      // Write columnHasNull flag (1 byte): 1 if column has nulls, 0 if not
       buffers.push(Buffer.from([columnHasNull ? 1 : 0]));
 
       if (columnHasNull && bitMap) {
-        // Calculate number of bytes needed for bitmap (1 bit per row)
-        // Use Math.ceil to properly round up only when needed
+        // Calculate number of bytes needed for bitmap (1 bit per row, 8 rows per byte)
+        // Example: 10 rows → Math.ceil(10/8) = 2 bytes
         const bitmapByteCount = Math.ceil(rowCount / 8);
         const bitmapBytes = Buffer.alloc(bitmapByteCount);
 
-        // Set bits in bitmap (1 = null, 0 = not null)
+        // Pack null indicators into bits (LSB-first ordering)
+        // Bit=1 means NULL, Bit=0 means NOT NULL
         for (let i = 0; i < bitMap.length; i++) {
           if (bitMap[i]) {
-            const byteIndex = Math.floor(i / 8);
-            const bitIndex = i % 8;
-            bitmapBytes[byteIndex] |= 1 << bitIndex;
+            const byteIndex = Math.floor(i / 8);  // Which byte in the bitmap
+            const bitIndex = i % 8;               // Which bit in the byte (0-7)
+            
+            // Set bit using LSB-first ordering: 1 << bitIndex
+            // Row 0 → bit 0 (LSB) = 1 << 0 = 0x01
+            // Row 1 → bit 1       = 1 << 1 = 0x02
+            // Row 7 → bit 7 (MSB) = 1 << 7 = 0x80
+            bitmapBytes[byteIndex] |= (1 << bitIndex);
           }
         }
 
