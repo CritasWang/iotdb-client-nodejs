@@ -379,12 +379,10 @@ export abstract class BaseSessionPool {
         // Check cache for optimal endpoint
         const cachedEndpoint = this.redirectCache.get(deviceId);
         let session: Session;
-        let usedCache = false;
 
         if (cachedEndpoint) {
           // Use cached endpoint
           session = await this.getSessionForEndpoint(cachedEndpoint);
-          usedCache = true;
         } else {
           // Use round-robin selection
           session = await this.getSession();
