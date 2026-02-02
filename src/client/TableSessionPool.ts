@@ -150,25 +150,16 @@ export class TableSessionPool extends BaseSessionPool {
   }
 
   /**
-   * Override getSession to ensure returned session has correct database context
-   * This is specific to table model
+   * Override getSession to return session from pool
+   * Database context is set during session creation (createPoolSession) and
+   * synchronized to all sessions via syncDatabaseContextToPool when USE is executed.
+   * 
+   * Note: We don't execute USE here on every getSession() call to avoid
+   * unnecessary round-trips to the server, which significantly impacts performance
+   * in high-concurrency scenarios.
    */
   async getSession(): Promise<Session> {
-    const session = await super.getSession();
-
-    // Ensure session has correct database context (table model only)
-    if (this.currentDatabase) {
-      try {
-        await session.executeNonQueryStatement(`USE ${this.currentDatabase}`);
-        logger.debug(
-          `Ensured database context ${this.currentDatabase} for session`,
-        );
-      } catch (error) {
-        logger.warn(`Failed to ensure database context: ${error}`);
-      }
-    }
-
-    return session;
+    return super.getSession();
   }
 
   /**
