@@ -151,12 +151,14 @@ export class TableSessionPool extends BaseSessionPool {
 
   /**
    * Override getSession to return session from pool
-   * Database context is set during session creation (createPoolSession) and
-   * synchronized to all sessions via syncDatabaseContextToPool when USE is executed.
    * 
-   * Note: We don't execute USE here on every getSession() call to avoid
-   * unnecessary round-trips to the server, which significantly impacts performance
-   * in high-concurrency scenarios.
+   * Database context is managed through a two-step process:
+   * 1. During session creation (createPoolSession), the session gets the current database context
+   * 2. When executeNonQueryStatement detects a USE statement, syncDatabaseContextToPool() is called
+   *    to synchronize the new database context to all idle sessions in the pool
+   * 
+   * This ensures all sessions maintain correct database context without needing to execute USE
+   * on every getSession() call, which significantly improves performance in high-concurrency scenarios.
    */
   async getSession(): Promise<Session> {
     return super.getSession();

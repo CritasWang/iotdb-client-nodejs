@@ -301,7 +301,10 @@ async function executeConcurrentWithBinding(pool, workload, poolSize, metrics, e
  * @param {Array} workload - Array of work items
  * @param {number} concurrency - Number of concurrent workers
  * @param {MetricsCollector} metrics - Metrics collector
- * @param {Function} executor - Async function to execute each work item (pool, work, session)
+ * @param {Function} executor - Async function to execute each work item: (pool, work, session) => Promise<dataPoints>
+ *                              The session parameter is the pre-acquired dedicated session for the worker.
+ *                              Executors should use this session directly when provided (not null) for optimal performance.
+ *                              If executor doesn't need the session, it can use pool methods which will handle session management.
  */
 async function executeConcurrent(pool, workload, concurrency, metrics, executor) {
   // Pre-acquire sessions for all workers to enable true concurrent execution
