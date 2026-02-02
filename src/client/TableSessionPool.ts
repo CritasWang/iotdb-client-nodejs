@@ -172,18 +172,10 @@ export class TableSessionPool extends BaseSessionPool {
     return this.currentDatabase;
   }
 
-  /**
-   * Insert tablet (supports both tree and table models, but typically used for TableTablet)
-   * @param tablet TreeTablet or TableTablet
-   */
-  async insertTablet(tablet: TreeTablet | TableTablet): Promise<void> {
-    const session = await this.getSession();
-    try {
-      return await session.insertTablet(tablet);
-    } finally {
-      this.releaseSession(session);
-    }
-  }
+  // Note: insertTablet is inherited from BaseSessionPool which provides:
+  // - Performance debug logging with [PERF] prefix
+  // - Redirection cache support for optimal routing
+  // - Proper session acquisition and release with timing metrics
 }
 
 // Re-export types for backward compatibility and new types
