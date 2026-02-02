@@ -172,10 +172,12 @@ export class TableSessionPool extends BaseSessionPool {
     return this.currentDatabase;
   }
 
-  // Note: insertTablet is inherited from BaseSessionPool which provides:
-  // - Performance debug logging with [PERF] prefix
-  // - Redirection cache support for optimal routing
-  // - Proper session acquisition and release with timing metrics
+  // insertTablet is inherited from BaseSessionPool.
+  // Previously this class had a simpler override that:
+  // 1. Did not include [PERF] debug logging for performance analysis
+  // 2. Did not support redirection cache for optimal write routing
+  // 3. Had less detailed timing metrics for session acquisition vs insert operation
+  // The inherited method from BaseSessionPool provides all these features.
 }
 
 // Re-export types for backward compatibility and new types
