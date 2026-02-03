@@ -4,6 +4,9 @@ This directory contains comprehensive documentation for the Apache IoTDB Node.js
 
 ## 📚 Documentation Categories
 
+### 📋 Documentation Overview
+- **[Documentation Summary (中文)](DOCUMENTATION_SUMMARY_ZH.md)** - 文档审查和组织总结
+
 ### Getting Started
 - [Main README](../README.md) - Project overview, installation, and quick start
 - [Contributing Guidelines](../CONTRIBUTING.md) - How to contribute to the project
