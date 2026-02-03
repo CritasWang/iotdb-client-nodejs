@@ -40,6 +40,15 @@ interface PooledSession {
   session: Session;
   lastUsed: number;
   inUse: boolean;
+  createdAt: number;
+  useCount: number;
+}
+
+interface QueueWaiter {
+  resolve: (session: Session) => void;
+  reject: (error: Error) => void;
+  timeoutId: NodeJS.Timeout;
+  enqueuedAt: number;
 }
 
 /**
@@ -50,7 +59,7 @@ export abstract class BaseSessionPool {
   protected config: PoolConfig;
   protected endPoints: EndPoint[];
   protected pool: PooledSession[] = [];
-  protected waitQueue: Array<(session: Session) => void> = [];
+  protected waitQueue: QueueWaiter[] = [];
   protected currentEndPointIndex = 0;
   protected cleanupInterval: NodeJS.Timeout | null = null;
   protected redirectCache: RedirectCache;
@@ -156,6 +165,8 @@ export abstract class BaseSessionPool {
       session,
       lastUsed: Date.now(),
       inUse: false,
+      createdAt: Date.now(),
+      useCount: 0,
     });
 
     return session;
@@ -203,6 +214,8 @@ export abstract class BaseSessionPool {
       session,
       lastUsed: Date.now(),
       inUse: true,
+      createdAt: Date.now(),
+      useCount: 0,
     };
     
     this.endPointToSession.set(key, pooledSession);
@@ -217,11 +230,16 @@ export abstract class BaseSessionPool {
   /**
    * Get a session from the pool
    * The session must be released back to the pool using releaseSession() after use
+   * 
+   * Uses three-tier acquisition strategy:
+   * 1. Reuse idle session (instant)
+   * 2. Create new session if under max (fast)
+   * 3. Wait in FIFO queue (orderly)
    */
   async getSession(): Promise<Session> {
     const startTime = Date.now();
     
-    // Try to find an available session
+    // Tier 1: Try to find an available session (instant)
     const available = this.pool.find((ps) => !ps.inUse && ps.session.isOpen());
     if (available) {
       available.inUse = true;
@@ -231,7 +249,7 @@ export abstract class BaseSessionPool {
       return available.session;
     }
 
-    // Create new session if pool is not full
+    // Tier 2: Create new session if pool is not full (fast)
     if (this.pool.length < (this.config.maxPoolSize || 10)) {
       logger.debug(`[PERF] getSession creating new session, pool: ${this.pool.length}/${this.config.maxPoolSize || 10}`);
       const session = await this.createSession();
@@ -244,13 +262,14 @@ export abstract class BaseSessionPool {
       return session;
     }
 
-    // Wait for a session to become available
+    // Tier 3: Wait in FIFO queue (orderly)
     logger.debug(`[PERF] getSession waiting, pool full: ${this.pool.length}, waitQueue: ${this.waitQueue.length}`);
     const waitTimeout = this.config.waitTimeout || 60000;
     return new Promise((resolve, reject) => {
       const timeoutId = setTimeout(() => {
-        const index = this.waitQueue.indexOf(resolve);
-        if (index > -1) {
+        // Find and remove this waiter from queue
+        const index = this.waitQueue.findIndex(w => w.resolve === resolve);
+        if (index !== -1) {
           this.waitQueue.splice(index, 1);
         }
         reject(new Error("Timeout waiting for available session"));
@@ -261,11 +280,12 @@ export abstract class BaseSessionPool {
         timeoutId.unref();
       }
 
-      this.waitQueue.push((session: Session) => {
-        clearTimeout(timeoutId);
-        const duration = Date.now() - startTime;
-        logger.debug(`[PERF] getSession (waited): ${duration}ms`);
-        resolve(session);
+      // Add to FIFO queue
+      this.waitQueue.push({
+        resolve,
+        reject,
+        timeoutId,
+        enqueuedAt: Date.now(),
       });
     });
   }
@@ -279,14 +299,89 @@ export abstract class BaseSessionPool {
     if (pooledSession) {
       pooledSession.inUse = false;
       pooledSession.lastUsed = Date.now();
+      pooledSession.useCount++;
 
-      // Notify waiting requests
+      // Check if session should be rotated
+      if (this.shouldRotateSession(pooledSession)) {
+        logger.debug(`Rotating session due to lifecycle limits`);
+        this.destroySession(pooledSession).catch((error) => {
+          logger.error("Error rotating session:", error);
+        });
+        return;
+      }
+
+      // FIFO: Notify first waiter in queue
       if (this.waitQueue.length > 0) {
-        const waiter = this.waitQueue.shift();
-        if (waiter) {
-          pooledSession.inUse = true;
-          waiter(session);
-        }
+        const waiter = this.waitQueue.shift()!;
+        clearTimeout(waiter.timeoutId);
+        pooledSession.inUse = true;
+        const waitDuration = Date.now() - waiter.enqueuedAt;
+        logger.debug(`[PERF] Notified waiter after ${waitDuration}ms`);
+        waiter.resolve(session);
+      }
+    }
+  }
+
+  /**
+   * Check if a session should be rotated based on lifecycle limits
+   */
+  private shouldRotateSession(ps: PooledSession): boolean {
+    const maxLifetimeSeconds = this.config.maxLifetimeSeconds ?? 1800;
+    const maxUses = this.config.maxUses ?? 7500;
+
+    // Check age limit (skip if maxLifetimeSeconds is 0)
+    if (maxLifetimeSeconds > 0) {
+      const ageSeconds = (Date.now() - ps.createdAt) / 1000;
+      if (ageSeconds > maxLifetimeSeconds) {
+        logger.debug(
+          `Session exceeded max lifetime: ${ageSeconds.toFixed(0)}s > ${maxLifetimeSeconds}s`
+        );
+        return true;
+      }
+    }
+
+    // Check use count limit (skip if maxUses is 0)
+    if (maxUses > 0 && ps.useCount > maxUses) {
+      logger.debug(
+        `Session exceeded max uses: ${ps.useCount} > ${maxUses}`
+      );
+      return true;
+    }
+
+    return false;
+  }
+
+  /**
+   * Destroy a session and optionally create a replacement
+   */
+  private async destroySession(ps: PooledSession): Promise<void> {
+    const index = this.pool.indexOf(ps);
+    if (index !== -1) {
+      this.pool.splice(index, 1);
+    }
+
+    // Remove from endpoint map if present
+    for (const [key, value] of this.endPointToSession.entries()) {
+      if (value === ps) {
+        this.endPointToSession.delete(key);
+        break;
+      }
+    }
+
+    try {
+      await ps.session.close();
+    } catch (error) {
+      logger.warn("Error closing session during rotation:", error);
+    }
+
+    // Create replacement if under min size
+    const minSize = this.config.minPoolSize || 1;
+    if (this.pool.length < minSize) {
+      try {
+        await this.createSession();
+        logger.debug("Created replacement session after rotation");
+      } catch (error) {
+        logger.error("Error creating replacement session:", error);
       }
     }
   }
@@ -444,5 +539,50 @@ export abstract class BaseSessionPool {
 
   getInUseSize(): number {
     return this.pool.filter((ps) => ps.inUse).length;
+  }
+
+  /**
+   * Get total number of sessions in the pool
+   * @alias getPoolSize
+   */
+  get totalCount(): number {
+    return this.pool.length;
+  }
+
+  /**
+   * Get number of idle sessions
+   * @alias getAvailableSize
+   */
+  get idleCount(): number {
+    return this.pool.filter((ps) => !ps.inUse).length;
+  }
+
+  /**
+   * Get number of active (in-use) sessions
+   * @alias getInUseSize
+   */
+  get activeCount(): number {
+    return this.pool.filter((ps) => ps.inUse).length;
+  }
+
+  /**
+   * Get number of requests waiting for a session
+   */
+  get waitingCount(): number {
+    return this.waitQueue.length;
+  }
+
+  /**
+   * Get comprehensive pool statistics
+   */
+  getPoolStats() {
+    return {
+      total: this.totalCount,
+      idle: this.idleCount,
+      active: this.activeCount,
+      waiting: this.waitingCount,
+      endpoints: this.endPoints.length,
+      redirectCacheSize: this.redirectCache.getStats().size,
+    };
   }
 }

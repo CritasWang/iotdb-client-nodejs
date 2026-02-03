@@ -85,6 +85,22 @@ export interface PoolConfig extends Config {
   maxIdleTime?: number;
   waitTimeout?: number;
   /**
+   * Maximum lifetime of a connection in seconds.
+   * Connections older than this will be rotated out.
+   * Set to 0 to disable rotation by age.
+   * 
+   * @default 1800 (30 minutes)
+   */
+  maxLifetimeSeconds?: number;
+  /**
+   * Maximum number of uses for a connection.
+   * Connections used more than this will be rotated out.
+   * Set to 0 to disable rotation by use count.
+   * 
+   * @default 7500
+   */
+  maxUses?: number;
+  /**
    * Enable client-side redirection optimization.
    * When enabled, the client caches device→endpoint mappings
    * and routes writes directly to optimal nodes.
@@ -119,6 +135,8 @@ export const DEFAULT_POOL_CONFIG: Partial<PoolConfig> = {
   minPoolSize: 1,
   maxIdleTime: 60000, // 60 seconds
   waitTimeout: 60000, // 60 seconds
+  maxLifetimeSeconds: 1800, // 30 minutes
+  maxUses: 7500,
   enableRedirection: true,
   redirectCacheTTL: 300000, // 5 minutes
 };
