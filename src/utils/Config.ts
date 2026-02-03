@@ -17,8 +17,8 @@
  * under the License.
  */
 
-export const SQL_DIALECT_TREE = 'tree';
-export const SQL_DIALECT_TABLE = 'table';
+export const SQL_DIALECT_TREE = "tree";
+export const SQL_DIALECT_TABLE = "table";
 
 export interface EndPoint {
   host: string;
@@ -38,14 +38,18 @@ export interface InternalConfig extends Config {
  */
 export function parseNodeUrls(nodeUrls: string[]): EndPoint[] {
   return nodeUrls.map((url) => {
-    const parts = url.split(':');
+    const parts = url.split(":");
     if (parts.length !== 2) {
-      throw new Error(`Invalid nodeUrl format: ${url}. Expected format: "host:port"`);
+      throw new Error(
+        `Invalid nodeUrl format: ${url}. Expected format: "host:port"`,
+      );
     }
     const host = parts[0].trim();
     const port = parseInt(parts[1].trim(), 10);
     if (!host || isNaN(port) || port <= 0 || port > 65535) {
-      throw new Error(`Invalid nodeUrl format: ${url}. Host must be non-empty and port must be a valid number (1-65535)`);
+      throw new Error(
+        `Invalid nodeUrl format: ${url}. Host must be non-empty and port must be a valid number (1-65535)`,
+      );
     }
     return { host, port };
   });
@@ -62,6 +66,27 @@ export interface Config {
   fetchSize?: number;
   enableSSL?: boolean;
   sslOptions?: SSLOptions;
+  /**
+   * Enable parallel serialization using Worker Threads.
+   *
+   * ⚠️ WARNING: NOT recommended for typical IoT workloads!
+   *
+   * Worker Thread IPC overhead (7ms) exceeds serialization time (0.36ms)
+   * for small batches, resulting in 20x slower performance.
+   *
+   * Only enable if ALL conditions are met:
+   * - Batch size > 10,000 rows
+   * - Column count > 100
+   * - Measured serialization time > 100ms
+   *
+   * For typical IoT data (100-1000 rows, 10-100 sensors),
+   * sequential serialization is 20x faster.
+   *
+   * @default false
+   * @experimental This feature uses Worker Threads
+   * @see WORKER_THREADS_ANALYSIS.md for detailed performance analysis
+   */
+  enableParallelSerialization?: boolean;
 }
 
 export interface SSLOptions {
@@ -80,7 +105,7 @@ export interface PoolConfig extends Config {
    * Enable client-side redirection optimization.
    * When enabled, the client caches device→endpoint mappings
    * and routes writes directly to optimal nodes.
-   * 
+   *
    * @default true
    * @requires Multi-node IoTDB cluster
    */
@@ -89,17 +114,17 @@ export interface PoolConfig extends Config {
    * Time-to-live for cached redirect mappings (milliseconds).
    * Set to 0 for no expiration.
    * Recommended: 300000 (5 minutes)
-   * 
+   *
    * @default 300000
    */
   redirectCacheTTL?: number;
 }
 
 export const DEFAULT_CONFIG: Partial<Config> = {
-  host: 'localhost',
+  host: "localhost",
   port: 6667,
-  username: 'root',
-  password: 'root',
+  username: "root",
+  password: "root",
   fetchSize: 1024,
   enableSSL: false,
 };

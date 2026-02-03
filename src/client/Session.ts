@@ -30,6 +30,7 @@ import { SessionDataSet } from "./SessionDataSet";
 import { RowRecord } from "./RowRecord";
 import { BaseColumnDecoder, ColumnEncoding, Column } from "./ColumnDecoder";
 import { RedirectException } from "../utils/Errors";
+import { getSerializationPool } from "./ParallelSerializationPool";
 
 const ttypes = require("../thrift/generated/client_types");
 
@@ -406,7 +407,9 @@ export class Session {
     tablet: TreeTablet | ITreeTablet,
   ): Promise<void> {
     const totalStartTime = Date.now();
-    logger.debug(`[PERF] insertTreeTablet START for device: ${tablet.deviceId}, rows: ${tablet.timestamps.length}, cols: ${tablet.measurements.length}`);
+    logger.debug(
+      `[PERF] insertTreeTablet START for device: ${tablet.deviceId}, rows: ${tablet.timestamps.length}, cols: ${tablet.measurements.length}`,
+    );
 
     const client = this.connection.getClient();
     const sessionId = this.connection.getSessionId();
@@ -430,13 +433,31 @@ export class Session {
 
     // Serialize values
     const serializeStartTime = Date.now();
-    const valuesBuffer = this.serializeTabletValues(
-      tablet.values,
-      tablet.dataTypes,
-      tablet.timestamps.length,
-    );
+
+    // Use parallel serialization only for very large batches
+    // Worker Thread IPC overhead (7ms) exceeds serialization time (0.36ms) for small batches
+    // Recommended thresholds: >10,000 rows AND >100 columns
+    const useParallel =
+      this.config.enableParallelSerialization &&
+      tablet.dataTypes.length > 100 && // High column count
+      tablet.timestamps.length > 10000; // Large batch size
+
+    const valuesBuffer = useParallel
+      ? await this.serializeTabletValuesParallel(
+          tablet.values,
+          tablet.dataTypes,
+          tablet.timestamps.length,
+        )
+      : this.serializeTabletValues(
+          tablet.values,
+          tablet.dataTypes,
+          tablet.timestamps.length,
+        );
+
     const serializeDuration = Date.now() - serializeStartTime;
-    logger.debug(`[PERF] Values serialization: ${serializeDuration}ms, buffer size: ${valuesBuffer.length} bytes`);
+    logger.debug(
+      `[PERF] Values serialization (${useParallel ? "parallel" : "sequential"}): ${serializeDuration}ms, buffer size: ${valuesBuffer.length} bytes`,
+    );
 
     const req = new ttypes.TSInsertTabletReq({
       sessionId: sessionId,
@@ -454,7 +475,9 @@ export class Session {
       client.insertTablet(req, (err: Error, response: any) => {
         const rpcDuration = Date.now() - rpcStartTime;
         const totalDuration = Date.now() - totalStartTime;
-        logger.debug(`[PERF] RPC call: ${rpcDuration}ms, Total: ${totalDuration}ms (serialize: ${timestampDuration + serializeDuration}ms)`);
+        logger.debug(
+          `[PERF] RPC call: ${rpcDuration}ms, Total: ${totalDuration}ms (serialize: ${timestampDuration + serializeDuration}ms)`,
+        );
 
         if (err) {
           reject(err);
@@ -467,14 +490,17 @@ export class Session {
           // Store redirect recommendation if provided
           if (response.redirectNode) {
             this.lastRedirectEndpoint = {
-              host: response.redirectNode.internalIp || response.redirectNode.ip,
+              host:
+                response.redirectNode.internalIp || response.redirectNode.ip,
               port: response.redirectNode.port,
             };
             logger.debug(
-              `Server recommends endpoint ${this.lastRedirectEndpoint.host}:${this.lastRedirectEndpoint.port} for future writes to ${tablet.deviceId}`
+              `Server recommends endpoint ${this.lastRedirectEndpoint.host}:${this.lastRedirectEndpoint.port} for future writes to ${tablet.deviceId}`,
             );
           } else {
-            logger.debug(`Server returned code 400 without redirect node for ${tablet.deviceId}`);
+            logger.debug(
+              `Server returned code 400 without redirect node for ${tablet.deviceId}`,
+            );
           }
           // Resolve successfully - the write already succeeded
           resolve();
@@ -498,7 +524,9 @@ export class Session {
     tablet: TableTablet | ITableTablet,
   ): Promise<void> {
     const totalStartTime = Date.now();
-    logger.debug(`[PERF] insertTableTablet START for table: ${tablet.tableName}, rows: ${tablet.timestamps.length}, cols: ${tablet.columnNames.length}`);
+    logger.debug(
+      `[PERF] insertTableTablet START for table: ${tablet.tableName}, rows: ${tablet.timestamps.length}, cols: ${tablet.columnNames.length}`,
+    );
 
     const client = this.connection.getClient();
     const sessionId = this.connection.getSessionId();
@@ -533,13 +561,31 @@ export class Session {
 
     // Serialize values
     const serializeStartTime = Date.now();
-    const valuesBuffer = this.serializeTabletValues(
-      tablet.values,
-      tablet.columnTypes,
-      tablet.timestamps.length,
-    );
+
+    // Use parallel serialization only for very large batches
+    // Worker Thread IPC overhead (7ms) exceeds serialization time (0.36ms) for small batches
+    // Recommended thresholds: >10,000 rows AND >100 columns
+    const useParallel =
+      this.config.enableParallelSerialization &&
+      tablet.columnTypes.length > 100 && // High column count
+      tablet.timestamps.length > 10000; // Large batch size
+
+    const valuesBuffer = useParallel
+      ? await this.serializeTabletValuesParallel(
+          tablet.values,
+          tablet.columnTypes,
+          tablet.timestamps.length,
+        )
+      : this.serializeTabletValues(
+          tablet.values,
+          tablet.columnTypes,
+          tablet.timestamps.length,
+        );
+
     const serializeDuration = Date.now() - serializeStartTime;
-    logger.debug(`[PERF] Values serialization: ${serializeDuration}ms, buffer size: ${valuesBuffer.length} bytes`);
+    logger.debug(
+      `[PERF] Values serialization (${useParallel ? "parallel" : "sequential"}): ${serializeDuration}ms, buffer size: ${valuesBuffer.length} bytes`,
+    );
 
     const req = new ttypes.TSInsertTabletReq({
       sessionId: sessionId,
@@ -559,7 +605,9 @@ export class Session {
       client.insertTablet(req, (err: Error, response: any) => {
         const rpcDuration = Date.now() - rpcStartTime;
         const totalDuration = Date.now() - totalStartTime;
-        logger.debug(`[PERF] RPC call: ${rpcDuration}ms, Total: ${totalDuration}ms (serialize: ${timestampDuration + serializeDuration}ms)`);
+        logger.debug(
+          `[PERF] RPC call: ${rpcDuration}ms, Total: ${totalDuration}ms (serialize: ${timestampDuration + serializeDuration}ms)`,
+        );
 
         if (err) {
           reject(err);
@@ -572,14 +620,17 @@ export class Session {
           // Store redirect recommendation if provided
           if (response.redirectNode) {
             this.lastRedirectEndpoint = {
-              host: response.redirectNode.internalIp || response.redirectNode.ip,
+              host:
+                response.redirectNode.internalIp || response.redirectNode.ip,
               port: response.redirectNode.port,
             };
             logger.debug(
-              `Server recommends endpoint ${this.lastRedirectEndpoint.host}:${this.lastRedirectEndpoint.port} for future writes to table ${tablet.tableName}`
+              `Server recommends endpoint ${this.lastRedirectEndpoint.host}:${this.lastRedirectEndpoint.port} for future writes to table ${tablet.tableName}`,
             );
           } else {
-            logger.debug(`Server returned code 400 without redirect node for table ${tablet.tableName}`);
+            logger.debug(
+              `Server returned code 400 without redirect node for table ${tablet.tableName}`,
+            );
           }
           // Resolve successfully - the write already succeeded
           resolve();
@@ -588,8 +639,12 @@ export class Session {
 
         if (response.code !== 200) {
           const errorMsg = response.message || "Insert table tablet failed";
-          logger.error(`Insert table tablet failed: code=${response.code}, message=${response.message}`);
-          logger.error(`Request details: prefixPath=${prefixPath}, columns=${tablet.columnNames.length}, rows=${tablet.timestamps.length}`);
+          logger.error(
+            `Insert table tablet failed: code=${response.code}, message=${response.message}`,
+          );
+          logger.error(
+            `Request details: prefixPath=${prefixPath}, columns=${tablet.columnNames.length}, rows=${tablet.timestamps.length}`,
+          );
           reject(new Error(`${errorMsg} (code: ${response.code})`));
           return;
         }
@@ -597,6 +652,57 @@ export class Session {
         resolve();
       });
     });
+  }
+
+  /**
+   * Parallel serialization using Worker Threads (NEW OPTIMIZATION)
+   * Distributes column serialization across multiple CPU cores
+   */
+  protected async serializeTabletValuesParallel(
+    values: any[][],
+    dataTypes: number[],
+    rowCount: number,
+  ): Promise<Buffer> {
+    const startTime = Date.now();
+
+    // Get the global serialization pool
+    const pool = getSerializationPool();
+
+    // Track null values for bitmap (still done in main thread - very fast)
+    const bitMaps: (boolean[] | null)[] = [];
+
+    for (let colIndex = 0; colIndex < dataTypes.length; colIndex++) {
+      const columnValues = values.map((row) => row[colIndex]);
+
+      const nullBitmap: boolean[] = [];
+      let hasNull = false;
+
+      for (let rowIndex = 0; rowIndex < columnValues.length; rowIndex++) {
+        const isNull =
+          columnValues[rowIndex] === null ||
+          columnValues[rowIndex] === undefined;
+        nullBitmap.push(isNull);
+        if (isNull) {
+          hasNull = true;
+        }
+      }
+
+      bitMaps.push(hasNull ? nullBitmap : null);
+    }
+
+    // Serialize all columns in parallel across workers
+    const buffers = await pool.serializeColumnsParallel(values, dataTypes);
+
+    // Append bitmap information
+    const bitmapBuffer = this.serializeBitMaps(bitMaps, rowCount);
+    buffers.push(bitmapBuffer);
+
+    const duration = Date.now() - startTime;
+    logger.debug(
+      `[PERF] Total parallel serialization (including bitmap): ${duration}ms`,
+    );
+
+    return Buffer.concat(buffers);
   }
 
   protected serializeTabletValues(
@@ -650,38 +756,124 @@ export class Session {
           values.map((v) => (v === null || v === undefined ? 0 : v ? 1 : 0)),
         );
       case 1: {
-        // INT32 - Use big-endian
+        // INT32 - Use big-endian with fast/slow path optimization
         const buffer = Buffer.alloc(values.length * 4);
-        values.forEach((v, i) => {
-          buffer.writeInt32BE(v === null || v === undefined ? 0 : v, i * 4);
-        });
+
+        // Check if there are any nulls
+        let hasNulls = false;
+        for (let i = 0; i < values.length; i++) {
+          if (values[i] === null || values[i] === undefined) {
+            hasNulls = true;
+            break;
+          }
+        }
+
+        if (!hasNulls) {
+          // Fast path: no null checks needed
+          for (let i = 0; i < values.length; i++) {
+            buffer.writeInt32BE(values[i], i * 4);
+          }
+        } else {
+          // Slow path: with null checks
+          for (let i = 0; i < values.length; i++) {
+            buffer.writeInt32BE(
+              values[i] === null || values[i] === undefined ? 0 : values[i],
+              i * 4,
+            );
+          }
+        }
         return buffer;
       }
       case 2: {
-        // INT64 - Use big-endian
+        // INT64 - Use big-endian with fast/slow path optimization
         const buffer = Buffer.alloc(values.length * 8);
-        values.forEach((v, i) => {
-          buffer.writeBigInt64BE(
-            v === null || v === undefined ? BigInt(0) : BigInt(v),
-            i * 8,
-          );
-        });
+
+        // Check if there are any nulls
+        let hasNulls = false;
+        for (let i = 0; i < values.length; i++) {
+          if (values[i] === null || values[i] === undefined) {
+            hasNulls = true;
+            break;
+          }
+        }
+
+        if (!hasNulls) {
+          // Fast path: no null checks or BigInt conversion if already BigInt
+          for (let i = 0; i < values.length; i++) {
+            buffer.writeBigInt64BE(
+              typeof values[i] === "bigint" ? values[i] : BigInt(values[i]),
+              i * 8,
+            );
+          }
+        } else {
+          // Slow path: with null checks
+          for (let i = 0; i < values.length; i++) {
+            buffer.writeBigInt64BE(
+              values[i] === null || values[i] === undefined
+                ? BigInt(0)
+                : BigInt(values[i]),
+              i * 8,
+            );
+          }
+        }
         return buffer;
       }
       case 3: {
-        // FLOAT - Use big-endian
+        // FLOAT - Use big-endian with fast/slow path optimization
         const buffer = Buffer.alloc(values.length * 4);
-        values.forEach((v, i) => {
-          buffer.writeFloatBE(v === null || v === undefined ? 0.0 : v, i * 4);
-        });
+
+        // Check if there are any nulls
+        let hasNulls = false;
+        for (let i = 0; i < values.length; i++) {
+          if (values[i] === null || values[i] === undefined) {
+            hasNulls = true;
+            break;
+          }
+        }
+
+        if (!hasNulls) {
+          // Fast path: no null checks needed
+          for (let i = 0; i < values.length; i++) {
+            buffer.writeFloatBE(values[i], i * 4);
+          }
+        } else {
+          // Slow path: with null checks
+          for (let i = 0; i < values.length; i++) {
+            buffer.writeFloatBE(
+              values[i] === null || values[i] === undefined ? 0.0 : values[i],
+              i * 4,
+            );
+          }
+        }
         return buffer;
       }
       case 4: {
-        // DOUBLE - Use big-endian
+        // DOUBLE - Use big-endian with fast/slow path optimization
         const buffer = Buffer.alloc(values.length * 8);
-        values.forEach((v, i) => {
-          buffer.writeDoubleBE(v === null || v === undefined ? 0.0 : v, i * 8);
-        });
+
+        // Check if there are any nulls
+        let hasNulls = false;
+        for (let i = 0; i < values.length; i++) {
+          if (values[i] === null || values[i] === undefined) {
+            hasNulls = true;
+            break;
+          }
+        }
+
+        if (!hasNulls) {
+          // Fast path: no null checks needed
+          for (let i = 0; i < values.length; i++) {
+            buffer.writeDoubleBE(values[i], i * 8);
+          }
+        } else {
+          // Slow path: with null checks
+          for (let i = 0; i < values.length; i++) {
+            buffer.writeDoubleBE(
+              values[i] === null || values[i] === undefined ? 0.0 : values[i],
+              i * 8,
+            );
+          }
+        }
         return buffer;
       }
       case 5: // TEXT
