@@ -3,6 +3,9 @@
  *
  * This example demonstrates how to use SessionPool for efficient connection
  * management in high-concurrency scenarios, including explicit session management.
+ * 
+ * For advanced features like lifecycle management, FIFO queuing, and comprehensive
+ * pool monitoring, see: examples/pool-optimization-demo.ts
  */
 
 import { SessionPool, PoolConfigBuilder, TreeTablet, TSDataType } from "../src";
@@ -119,6 +122,17 @@ async function main() {
     console.log("Total connections:", pool.getPoolSize());
     console.log("Available connections:", pool.getAvailableSize());
     console.log("In-use connections:", pool.getInUseSize());
+
+    // New metrics from Phase 3D optimization
+    console.log("\nEnhanced pool metrics:");
+    console.log("Total (new API):", pool.totalCount);
+    console.log("Idle (new API):", pool.idleCount);
+    console.log("Active (new API):", pool.activeCount);
+    console.log("Waiting requests:", pool.waitingCount);
+
+    // Comprehensive statistics
+    const stats = pool.getPoolStats();
+    console.log("\nComprehensive stats:", stats);
   } catch (error) {
     console.error("Error:", error);
   } finally {

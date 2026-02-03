@@ -3,6 +3,9 @@
  *
  * This example demonstrates how to use TableSessionPool for table model
  * operations in IoTDB, including explicit session management and nodeUrls.
+ * 
+ * For advanced features like lifecycle management and enhanced metrics,
+ * see: examples/pool-optimization-demo.ts
  */
 
 import { TableSessionPool, PoolConfigBuilder, TSDataType, ColumnCategory, TableTablet } from "../src";
@@ -153,6 +156,17 @@ async function main() {
     console.log("Total connections:", pool.getPoolSize());
     console.log("Available connections:", pool.getAvailableSize());
     console.log("In-use connections:", pool.getInUseSize());
+
+    // New enhanced metrics (Phase 3D)
+    console.log("\nEnhanced metrics:");
+    console.log("Total (new API):", pool.totalCount);
+    console.log("Idle (new API):", pool.idleCount);
+    console.log("Active (new API):", pool.activeCount);
+    console.log("Waiting requests:", pool.waitingCount);
+
+    // Get comprehensive stats
+    const stats = pool.getPoolStats();
+    console.log("\nComprehensive stats:", stats);
   } catch (error) {
     console.error("Error:", error);
   } finally {

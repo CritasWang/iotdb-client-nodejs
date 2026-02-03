@@ -31,6 +31,9 @@ The Apache IoTDB Node.js Client is a high-performance, feature-rich client libra
 
 - **Session Management**: Single session with query, non-query, and insertTablet operations
 - **SessionPool**: Connection pooling for high-concurrency scenarios with automatic load balancing
+  - ✨ **FIFO Queue**: Fair request ordering prevents starvation under load
+  - ✨ **Lifecycle Management**: Automatic connection rotation (maxLifetimeSeconds, maxUses)
+  - ✨ **Enhanced Metrics**: Comprehensive pool monitoring (totalCount, idleCount, activeCount, waitingCount)
 - **TableSessionPool**: Specialized pool for table model operations with database context management
 - **Multi-Node Support**: Round-robin load balancing across multiple IoTDB nodes with failover
 - **SSL/TLS Support**: Secure connections with customizable SSL options and certificate validation
@@ -213,6 +216,48 @@ await pool.insertTablet({
 // Get pool statistics
 console.log('Pool size:', pool.getPoolSize());
 console.log('Available:', pool.getAvailableSize());
+
+// Enhanced metrics (new in Phase 3)
+console.log('Waiting requests:', pool.waitingCount);
+const stats = pool.getPoolStats();
+console.log('Comprehensive stats:', stats);
+// { total, idle, active, waiting, endpoints, redirectCacheSize }
+
+await pool.close();
+```
+
+### Advanced Pool Configuration
+
+The SessionPool now supports advanced configuration options inspired by [node-postgres](https://node-postgres.com/apis/pool):
+
+```typescript
+const pool = new SessionPool({
+  host: 'localhost',
+  port: 6667,
+  username: 'root',
+  password: 'root',
+  maxPoolSize: 10,
+  minPoolSize: 2,
+  
+  // Connection lifecycle management (Phase 3C)
+  maxLifetimeSeconds: 1800,  // Rotate connections after 30 minutes
+  maxUses: 7500,             // Rotate after 7500 uses
+  
+  // Queue configuration
+  waitTimeout: 60000,        // Timeout for waiting requests (ms)
+  maxIdleTime: 60000,        // Idle connection timeout (ms)
+});
+```
+
+**Key Features:**
+- ✅ **FIFO Queue**: Fair request ordering, prevents starvation
+- ✅ **Lifecycle Management**: Automatic connection rotation prevents memory leaks
+- ✅ **Enhanced Metrics**: Comprehensive pool health monitoring
+- ✅ **Backward Compatible**: All existing code works unchanged
+
+For complete documentation, see:
+- [Pool Optimization Implementation](docs/pool-optimization-implementation.md)
+- [Pool Optimization Demo](examples/pool-optimization-demo.ts)
 
 await pool.close();
 ```
@@ -1408,6 +1453,9 @@ Comprehensive documentation is available in the [docs/](docs/) directory:
 ### Technical Documentation
 
 - **[Implementation Guide](docs/implementation.md)** - Architecture and core components
+- **[Pool Optimization Implementation](docs/pool-optimization-implementation.md)** - Phase 3 pool improvements
+- **[Pool Optimization Plan](docs/pool-optimization-plan.md)** - Design document for pool optimizations
+- **[Performance Guide](docs/performance-guide.md)** - Performance tuning and benchmarks
 - **[Thrift Documentation](docs/thrift.md)** - Thrift code generation
 - **[Build Infrastructure](docs/development/build-infrastructure.md)** - Build system details
 
