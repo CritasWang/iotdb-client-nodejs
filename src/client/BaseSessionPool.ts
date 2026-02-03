@@ -312,12 +312,14 @@ export abstract class BaseSessionPool {
 
       // FIFO: Notify first waiter in queue
       if (this.waitQueue.length > 0) {
-        const waiter = this.waitQueue.shift()!;
-        clearTimeout(waiter.timeoutId);
-        pooledSession.inUse = true;
-        const waitDuration = Date.now() - waiter.enqueuedAt;
-        logger.debug(`[PERF] Notified waiter after ${waitDuration}ms`);
-        waiter.resolve(session);
+        const waiter = this.waitQueue.shift();
+        if (waiter) {
+          clearTimeout(waiter.timeoutId);
+          pooledSession.inUse = true;
+          const waitDuration = Date.now() - waiter.enqueuedAt;
+          logger.debug(`[PERF] Notified waiter after ${waitDuration}ms`);
+          waiter.resolve(session);
+        }
       }
     }
   }

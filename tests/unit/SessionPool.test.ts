@@ -51,11 +51,20 @@ describe("SessionPool Unit Tests", () => {
       expect(stats).toHaveProperty("waiting");
       expect(stats).toHaveProperty("endpoints");
       expect(stats).toHaveProperty("redirectCacheSize");
+      
+      // Verify types and initial values (before init)
       expect(typeof stats.total).toBe("number");
       expect(typeof stats.idle).toBe("number");
       expect(typeof stats.active).toBe("number");
       expect(typeof stats.waiting).toBe("number");
       expect(typeof stats.endpoints).toBe("number");
+      
+      // Before init, pool should be empty
+      expect(stats.total).toBe(0);
+      expect(stats.idle).toBe(0);
+      expect(stats.active).toBe(0);
+      expect(stats.waiting).toBe(0);
+      expect(stats.endpoints).toBe(1); // 1 endpoint configured
     });
 
     test("should maintain backward compatibility with old methods", () => {
