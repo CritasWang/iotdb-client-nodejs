@@ -345,7 +345,7 @@ export class SessionDataSet {
     columnTypes: string[];
   }> {
     const timestamps: number[] = [];
-    const columnCount = this.ignoreTimeStamp ? this.columnNames.length : this.columnNames.length;
+    const columnCount = this.columnNames.length;
     const values: any[][] = Array.from({ length: columnCount }, () => []);
 
     // Process all remaining rows
