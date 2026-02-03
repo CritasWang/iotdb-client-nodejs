@@ -5,6 +5,7 @@ This directory contains comprehensive documentation for the Apache IoTDB Node.js
 ## 📚 Documentation Categories
 
 ### 📋 Documentation Overview
+- **[Documentation Review Complete](DOCUMENTATION_REVIEW_COMPLETE.md)** - Complete review and organization report (EN)
 - **[Documentation Summary (中文)](DOCUMENTATION_SUMMARY_ZH.md)** - 文档审查和组织总结
 
 ### Getting Started
