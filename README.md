@@ -31,9 +31,8 @@ The Apache IoTDB Node.js Client is a high-performance, feature-rich client libra
 
 - **Session Management**: Single session with query, non-query, and insertTablet operations
 - **SessionPool**: Connection pooling for high-concurrency scenarios with automatic load balancing
-  - ✨ **FIFO Queue**: Fair request ordering prevents starvation under load
-  - ✨ **Lifecycle Management**: Automatic connection rotation (maxLifetimeSeconds, maxUses)
   - ✨ **Enhanced Metrics**: Comprehensive pool monitoring (totalCount, idleCount, activeCount, waitingCount)
+  - ✨ **Wait Queue Tracking**: Monitor requests waiting for connections
 - **TableSessionPool**: Specialized pool for table model operations with database context management
 - **Multi-Node Support**: Round-robin load balancing across multiple IoTDB nodes with failover
 - **SSL/TLS Support**: Secure connections with customizable SSL options and certificate validation
@@ -217,7 +216,7 @@ await pool.insertTablet({
 console.log('Pool size:', pool.getPoolSize());
 console.log('Available:', pool.getAvailableSize());
 
-// Enhanced metrics (new in Phase 3)
+// Enhanced metrics for better monitoring
 console.log('Waiting requests:', pool.waitingCount);
 const stats = pool.getPoolStats();
 console.log('Comprehensive stats:', stats);
@@ -226,38 +225,35 @@ console.log('Comprehensive stats:', stats);
 await pool.close();
 ```
 
-### Advanced Pool Configuration
+### Enhanced Pool Metrics
 
-The SessionPool now supports advanced configuration options inspired by [node-postgres](https://node-postgres.com/apis/pool):
+The SessionPool provides comprehensive metrics for monitoring pool health:
 
 ```typescript
 const pool = new SessionPool({
   host: 'localhost',
   port: 6667,
-  username: 'root',
-  password: 'root',
   maxPoolSize: 10,
   minPoolSize: 2,
-  
-  // Connection lifecycle management (Phase 3C)
-  maxLifetimeSeconds: 1800,  // Rotate connections after 30 minutes
-  maxUses: 7500,             // Rotate after 7500 uses
-  
-  // Queue configuration
   waitTimeout: 60000,        // Timeout for waiting requests (ms)
   maxIdleTime: 60000,        // Idle connection timeout (ms)
 });
+
+// New metric getters (backward compatible with old methods)
+console.log('Total connections:', pool.totalCount);
+console.log('Idle connections:', pool.idleCount);
+console.log('Active connections:', pool.activeCount);
+console.log('Waiting requests:', pool.waitingCount);
+
+// Comprehensive stats object
+const stats = pool.getPoolStats();
+// { total, idle, active, waiting, endpoints, redirectCacheSize }
 ```
 
 **Key Features:**
-- ✅ **FIFO Queue**: Fair request ordering, prevents starvation
-- ✅ **Lifecycle Management**: Automatic connection rotation prevents memory leaks
 - ✅ **Enhanced Metrics**: Comprehensive pool health monitoring
+- ✅ **Wait Queue Tracking**: Monitor requests waiting for connections
 - ✅ **Backward Compatible**: All existing code works unchanged
-
-For complete documentation, see:
-- [Pool Optimization Implementation](docs/pool-optimization-implementation.md)
-- [Pool Optimization Demo](examples/pool-optimization-demo.ts)
 
 await pool.close();
 ```

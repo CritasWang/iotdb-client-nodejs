@@ -101,58 +101,6 @@ describe("SessionPool Unit Tests", () => {
     });
   });
 
-  describe("Lifecycle Configuration", () => {
-    test("should accept maxLifetimeSeconds configuration", () => {
-      const pool = new SessionPool({
-        host: "localhost",
-        port: 6667,
-        maxPoolSize: 5,
-        minPoolSize: 1,
-        maxLifetimeSeconds: 600, // 10 minutes
-      });
-
-      expect(pool).toBeDefined();
-    });
-
-    test("should accept maxUses configuration", () => {
-      const pool = new SessionPool({
-        host: "localhost",
-        port: 6667,
-        maxPoolSize: 5,
-        minPoolSize: 1,
-        maxUses: 1000,
-      });
-
-      expect(pool).toBeDefined();
-    });
-
-    test("should accept both lifecycle configurations", () => {
-      const pool = new SessionPool({
-        host: "localhost",
-        port: 6667,
-        maxPoolSize: 5,
-        minPoolSize: 1,
-        maxLifetimeSeconds: 600,
-        maxUses: 1000,
-      });
-
-      expect(pool).toBeDefined();
-    });
-
-    test("should support disabling lifecycle rotation with 0 values", () => {
-      const pool = new SessionPool({
-        host: "localhost",
-        port: 6667,
-        maxPoolSize: 5,
-        minPoolSize: 1,
-        maxLifetimeSeconds: 0, // Disable age-based rotation
-        maxUses: 0, // Disable use-count-based rotation
-      });
-
-      expect(pool).toBeDefined();
-    });
-  });
-
   describe("Constructor Backward Compatibility", () => {
     test("should support old constructor format (host, port, config)", () => {
       const pool = new SessionPool("localhost", 6667, {

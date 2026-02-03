@@ -284,7 +284,7 @@ describe("SessionPool E2E Tests", () => {
     expect(pool.getAvailableSize()).toBeGreaterThanOrEqual(3);
   });
 
-  test("Should support enhanced metrics (Phase 3D)", async () => {
+  test("Should support enhanced metrics", async () => {
     if (!isConnected) {
       console.log("Skipping test - no IoTDB connection");
       return;
@@ -309,41 +309,5 @@ describe("SessionPool E2E Tests", () => {
     expect(stats.idle).toBe(pool.idleCount);
     expect(stats.active).toBe(pool.activeCount);
     expect(stats.waiting).toBe(pool.waitingCount);
-  });
-
-  test("Should support lifecycle configuration (Phase 3C)", async () => {
-    if (!isConnected) {
-      console.log("Skipping test - no IoTDB connection");
-      return;
-    }
-
-    // Create a pool with lifecycle configuration
-    const lifecyclePool = new SessionPool({
-      host: IOTDB_HOST,
-      port: IOTDB_PORT,
-      username: IOTDB_USER,
-      password: IOTDB_PASSWORD,
-      maxPoolSize: 3,
-      minPoolSize: 1,
-      maxLifetimeSeconds: 10, // 10 seconds for testing
-      maxUses: 100, // 100 uses for testing
-    });
-
-    try {
-      await lifecyclePool.init();
-      
-      // Pool should initialize successfully
-      expect(lifecyclePool.getPoolSize()).toBeGreaterThanOrEqual(1);
-      
-      // Execute some operations to increment use count
-      for (let i = 0; i < 5; i++) {
-        await lifecyclePool.executeNonQueryStatement("SHOW DATABASES");
-      }
-      
-      // Pool should still be functional
-      expect(lifecyclePool.totalCount).toBeGreaterThanOrEqual(1);
-    } finally {
-      await lifecyclePool.close();
-    }
   });
 });
