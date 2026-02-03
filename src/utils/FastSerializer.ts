@@ -35,7 +35,8 @@ import { globalBufferPool } from "./BufferPool";
  * Optimized: Single buffer allocation
  */
 export function serializeBooleanColumn(values: any[]): Buffer {
-  const buffer = globalBufferPool.acquire(values.length);
+  // For small buffers, direct allocation is faster than pooling
+  const buffer = Buffer.allocUnsafe(values.length);
   for (let i = 0; i < values.length; i++) {
     const v = values[i];
     buffer[i] = (v === null || v === undefined) ? 0 : (v ? 1 : 0);
@@ -49,14 +50,14 @@ export function serializeBooleanColumn(values: any[]): Buffer {
  */
 export function serializeInt32Column(values: any[]): Buffer {
   const size = values.length * 4;
-  const buffer = globalBufferPool.acquire(size);
+  const buffer = size >= 1024 ? globalBufferPool.acquire(size) : Buffer.allocUnsafe(size);
   
   for (let i = 0; i < values.length; i++) {
     const v = values[i];
     buffer.writeInt32BE(v === null || v === undefined ? 0 : v, i * 4);
   }
   
-  return buffer;
+  return buffer.subarray(0, size);
 }
 
 /**
@@ -65,7 +66,7 @@ export function serializeInt32Column(values: any[]): Buffer {
  */
 export function serializeInt64Column(values: any[]): Buffer {
   const size = values.length * 8;
-  const buffer = globalBufferPool.acquire(size);
+  const buffer = size >= 1024 ? globalBufferPool.acquire(size) : Buffer.allocUnsafe(size);
   
   for (let i = 0; i < values.length; i++) {
     const v = values[i];
@@ -75,7 +76,7 @@ export function serializeInt64Column(values: any[]): Buffer {
     );
   }
   
-  return buffer;
+  return buffer.subarray(0, size);
 }
 
 /**
@@ -84,14 +85,14 @@ export function serializeInt64Column(values: any[]): Buffer {
  */
 export function serializeFloatColumn(values: any[]): Buffer {
   const size = values.length * 4;
-  const buffer = globalBufferPool.acquire(size);
+  const buffer = size >= 1024 ? globalBufferPool.acquire(size) : Buffer.allocUnsafe(size);
   
   for (let i = 0; i < values.length; i++) {
     const v = values[i];
     buffer.writeFloatBE(v === null || v === undefined ? 0.0 : v, i * 4);
   }
   
-  return buffer;
+  return buffer.subarray(0, size);
 }
 
 /**
@@ -100,14 +101,14 @@ export function serializeFloatColumn(values: any[]): Buffer {
  */
 export function serializeDoubleColumn(values: any[]): Buffer {
   const size = values.length * 8;
-  const buffer = globalBufferPool.acquire(size);
+  const buffer = size >= 1024 ? globalBufferPool.acquire(size) : Buffer.allocUnsafe(size);
   
   for (let i = 0; i < values.length; i++) {
     const v = values[i];
     buffer.writeDoubleBE(v === null || v === undefined ? 0.0 : v, i * 8);
   }
   
-  return buffer;
+  return buffer.subarray(0, size);
 }
 
 /**
@@ -127,7 +128,7 @@ export function serializeTextColumn(values: any[]): Buffer {
   }
   
   // Phase 2: Single allocation and copy
-  const result = globalBufferPool.acquire(totalSize);
+  const result = totalSize >= 1024 ? globalBufferPool.acquire(totalSize) : Buffer.allocUnsafe(totalSize);
   let offset = 0;
   
   for (const strBytes of strBuffers) {
@@ -137,7 +138,7 @@ export function serializeTextColumn(values: any[]): Buffer {
     offset += strBytes.length;
   }
   
-  return result;
+  return result.subarray(0, totalSize);
 }
 
 /**
@@ -147,7 +148,7 @@ export function serializeTextColumn(values: any[]): Buffer {
  */
 export function serializeTimestampColumn(values: any[]): Buffer {
   const size = values.length * 8;
-  const buffer = globalBufferPool.acquire(size);
+  const buffer = size >= 1024 ? globalBufferPool.acquire(size) : Buffer.allocUnsafe(size);
   
   for (let i = 0; i < values.length; i++) {
     const v = values[i];
@@ -162,7 +163,7 @@ export function serializeTimestampColumn(values: any[]): Buffer {
     buffer.writeBigInt64BE(timestamp, i * 8);
   }
   
-  return buffer;
+  return buffer.subarray(0, size);
 }
 
 /**
@@ -171,7 +172,7 @@ export function serializeTimestampColumn(values: any[]): Buffer {
  */
 export function serializeDateColumn(values: any[]): Buffer {
   const size = values.length * 4;
-  const buffer = globalBufferPool.acquire(size);
+  const buffer = size >= 1024 ? globalBufferPool.acquire(size) : Buffer.allocUnsafe(size);
   
   for (let i = 0; i < values.length; i++) {
     const v = values[i];
@@ -186,7 +187,7 @@ export function serializeDateColumn(values: any[]): Buffer {
     buffer.writeInt32BE(days, i * 4);
   }
   
-  return buffer;
+  return buffer.subarray(0, size);
 }
 
 /**
@@ -209,7 +210,7 @@ export function serializeBlobColumn(values: any[]): Buffer {
   }
   
   // Phase 2: Single allocation and copy
-  const result = globalBufferPool.acquire(totalSize);
+  const result = totalSize >= 1024 ? globalBufferPool.acquire(totalSize) : Buffer.allocUnsafe(totalSize);
   let offset = 0;
   
   for (const blob of blobBuffers) {
@@ -219,7 +220,7 @@ export function serializeBlobColumn(values: any[]): Buffer {
     offset += blob.length;
   }
   
-  return result;
+  return result.subarray(0, totalSize);
 }
 
 /**
@@ -228,7 +229,7 @@ export function serializeBlobColumn(values: any[]): Buffer {
  */
 export function serializeTimestamps(timestamps: number[]): Buffer {
   const size = timestamps.length * 8;
-  const buffer = globalBufferPool.acquire(size);
+  const buffer = size >= 1024 ? globalBufferPool.acquire(size) : Buffer.allocUnsafe(size);
   
   for (let i = 0; i < timestamps.length; i++) {
     const t = timestamps[i];
@@ -238,7 +239,7 @@ export function serializeTimestamps(timestamps: number[]): Buffer {
     buffer.writeBigInt64BE(BigInt(Math.floor(t)), i * 8);
   }
   
-  return buffer;
+  return buffer.subarray(0, size);
 }
 
 /**

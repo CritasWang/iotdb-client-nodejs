@@ -86,7 +86,8 @@ export class BufferPool {
     const buffer = pool.pop();
     if (buffer) {
       this.stats.hits++;
-      // Return a slice of the requested size to prevent accidental overwrites
+      // Return the full buffer from the pool (will be sized to sizeClass)
+      // The caller is responsible for using only minSize bytes
       return buffer.subarray(0, minSize);
     } else {
       this.stats.misses++;
