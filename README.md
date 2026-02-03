@@ -567,7 +567,7 @@ const config = new PoolConfigBuilder()
 
 ### Data Types
 
-IoTDB Node.js client supports all IoTDB data types including BOOLEAN, INT32, INT64, FLOAT, DOUBLE, TEXT, BLOB, STRING, DATE, and TIMESTAMP. See [DATA_TYPES.md](./DATA_TYPES.md) for comprehensive documentation on:
+IoTDB Node.js client supports all IoTDB data types including BOOLEAN, INT32, INT64, FLOAT, DOUBLE, TEXT, BLOB, STRING, DATE, and TIMESTAMP. See [Data Types Reference](docs/data-types.md) for comprehensive documentation on:
 - Type mappings between JavaScript and IoTDB
 - Usage examples for each data type
 - Best practices and encoding options
@@ -1440,18 +1440,25 @@ Comprehensive documentation is available in the [docs/](docs/) directory:
 
 ### User Guides
 
+- **[Documentation Index](docs/README.md)** - Complete documentation overview and navigation
 - **[Tree Model User Guide](docs/user-guide-tree.md)** - Complete guide for timeseries data model
 - **[Table Model User Guide](docs/user-guide-table.md)** - Complete guide for relational data model
 - **[SessionDataSet Guide](docs/sessiondataset-guide.md)** - Working with query results
 - **[Data Types Reference](docs/data-types.md)** - Complete data type documentation
 - **[TypeScript Examples](docs/typescript-examples.md)** - TypeScript usage guide
 
+### Performance Documentation
+
+- **[Performance Documentation Index](docs/PERFORMANCE_INDEX.md)** ⭐ **START HERE for performance**
+- **[Performance Guide](docs/performance-guide.md)** - User-focused optimization guide with benchmarks
+- **[pg-Inspired Optimizations](docs/pg-inspired-optimizations.md)** - Developer-focused implementation details
+- **[Performance Analysis Summary](PERFORMANCE_ANALYSIS_SUMMARY.md)** - Pool optimization testing analysis
+- **[Redirection Design](docs/redirection-design.md)** - Client-side redirection optimization
+
 ### Technical Documentation
 
 - **[Implementation Guide](docs/implementation.md)** - Architecture and core components
-- **[Pool Optimization Implementation](docs/pool-optimization-implementation.md)** - Phase 3 pool improvements
-- **[Pool Optimization Plan](docs/pool-optimization-plan.md)** - Design document for pool optimizations
-- **[Performance Guide](docs/performance-guide.md)** - Performance tuning and benchmarks
+- **[Tablet Interfaces](docs/tablet-interfaces.md)** - TreeTablet vs TableTablet guide
 - **[Thrift Documentation](docs/thrift.md)** - Thrift code generation
 - **[Build Infrastructure](docs/development/build-infrastructure.md)** - Build system details
 
@@ -1466,6 +1473,8 @@ Comprehensive documentation is available in the [docs/](docs/) directory:
 - **[Project Status](docs/project-status.md)** - Implementation status and roadmap
 - **[Changelog](CHANGELOG.md)** - Version history
 - **[GitHub Workflows](.github/workflows/README.md)** - CI/CD documentation
+- **[E2E Test Status](E2E_TEST_STATUS.md)** - End-to-end testing status
+- **[Tablet Refactoring Summary](TABLET_REFACTORING_SUMMARY.md)** - Summary of tablet interface changes
 
 ## Contributing
 
