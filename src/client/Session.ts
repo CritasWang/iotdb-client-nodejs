@@ -1494,18 +1494,32 @@ export class Session {
     const totalStartTime = Date.now();
     logger.debug(`[PERF] insertTabletsParallel START: ${tablets.length} tablets, concurrency: ${concurrency}`);
 
-    // Split tablets into chunks for concurrent execution
-    const chunks: (TreeTablet | ITreeTablet | TableTablet | ITableTablet)[][] = [];
-    for (let i = 0; i < tablets.length; i += concurrency) {
-      chunks.push(tablets.slice(i, i + concurrency));
-    }
+    // Use worker pattern to properly limit concurrency
+    const actualConcurrency = Math.min(concurrency, tablets.length);
+    let tabletIndex = 0;
+    const errors: Error[] = [];
 
-    // Execute chunks sequentially, but tablets within each chunk in parallel
-    for (const chunk of chunks) {
-      await Promise.all(chunk.map(tablet => this.insertTablet(tablet)));
-    }
+    // Create workers that consume from the tablet queue
+    const workers = Array.from({ length: actualConcurrency }, async () => {
+      while (tabletIndex < tablets.length) {
+        const idx = tabletIndex++;
+        if (idx >= tablets.length) break;
+
+        try {
+          await this.insertTablet(tablets[idx]);
+        } catch (err) {
+          errors.push(err instanceof Error ? err : new Error(String(err)));
+        }
+      }
+    });
+
+    await Promise.all(workers);
 
     const totalDuration = Date.now() - totalStartTime;
     logger.debug(`[PERF] insertTabletsParallel COMPLETE: ${totalDuration}ms, ${tablets.length / (totalDuration / 1000)} tablets/sec`);
+
+    if (errors.length > 0) {
+      throw new Error(`${errors.length} of ${tablets.length} tablet inserts failed. First error: ${errors[0].message}`);
+    }
   }
 }
