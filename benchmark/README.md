@@ -8,7 +8,8 @@ This benchmark suite provides specialized tools for testing IoTDB write performa
 
 - **Tree Model Benchmark** (`benchmark-tree.js`) - Tests timeseries data model using `insertTablet` API
 - **Table Model Benchmark** (`benchmark-table.js`) - Tests relational data model using `insertTablet` API
-- **API Comparison Benchmark** (`benchmark-comparison.js`) - Compares different insertion methods
+- **Tree API Comparison** (`benchmark-comparison.js`) - Compares different insertion methods (tree model)
+- **Table API Comparison** (`benchmark-table-comparison.js`) - Compares different insertion methods (table model)
 
 ### Key Features
 
@@ -50,9 +51,11 @@ This will test the benchmark infrastructure without requiring IoTDB connection, 
 - Metrics collection
 - Performance reporting
 
-### API Comparison Benchmark (NEW)
+### API Comparison Benchmarks (NEW)
 
-Compare the performance of different insertion methods:
+#### Tree Model Comparison
+
+Compare the performance of different insertion methods for tree model:
 
 ```bash
 # Run with default settings
@@ -66,6 +69,23 @@ This benchmark compares:
 1. **Sequential insertTablet** - Baseline (one tablet at a time)
 2. **insertTablets** - Batch insert (single RPC for multiple tablets)
 3. **insertTabletsParallel** - Concurrent insertion with pool
+
+#### Table Model Comparison
+
+Compare the performance of different insertion methods for table model:
+
+```bash
+# Run with default settings
+node benchmark/benchmark-table-comparison.js
+
+# Customize parameters
+TABLET_COUNT=200 CONCURRENCY=20 node benchmark/benchmark-table-comparison.js
+```
+
+This benchmark compares:
+1. **Sequential insertTablet** - Baseline (one tablet at a time)
+2. **insertTabletsParallel** - Concurrent insertion with pool
+3. **executeParallel** - Generic parallel execution
 
 ### Build the Client
 
