@@ -155,7 +155,12 @@ async function demonstratePoolApis() {
       { concurrency: 5 }
     );
     
-    console.log(`Results: ${results.filter(r => r.rowCount > 0).length} devices have timeseries`);
+    // Check for failed operations (undefined values indicate failures when stopOnError=false)
+    const failedCount = results.filter(r => r === undefined).length;
+    if (failedCount > 0) {
+      console.log(`Warning: ${failedCount} operations failed`);
+    }
+    console.log(`Results: ${results.filter(r => r && r.rowCount > 0).length} devices have timeseries`);
 
   } catch (error) {
     console.error("Error:", error);

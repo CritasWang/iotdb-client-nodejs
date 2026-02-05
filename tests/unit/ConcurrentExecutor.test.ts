@@ -74,6 +74,13 @@ describe('ConcurrentExecutor', () => {
       expect(result.errors).toHaveLength(1);
       expect(result.errors[0].index).toBe(2);
       expect(result.errors[0].error.message).toBe('Test error');
+      // Verify that failed operations leave undefined in results array
+      expect(result.results[2]).toBeUndefined();
+      // Successful operations have values
+      expect(result.results[0]).toBe(2);
+      expect(result.results[1]).toBe(4);
+      expect(result.results[3]).toBe(8);
+      expect(result.results[4]).toBe(10);
     });
 
     it('should stop on error when configured', async () => {

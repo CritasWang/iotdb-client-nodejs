@@ -47,8 +47,12 @@ export interface ConcurrentOptions {
  * Result of concurrent execution with statistics
  */
 export interface ConcurrentResult<T> {
-  /** Results array (same order as input) */
-  results: T[];
+  /** 
+   * Results array (same order as input).
+   * Note: Failed operations will have `undefined` at their index.
+   * Use `errors` array to correlate failures with their indices.
+   */
+  results: (T | undefined)[];
   /** Total execution time in milliseconds */
   durationMs: number;
   /** Number of successful operations */
@@ -107,7 +111,7 @@ export async function executeConcurrent<T, R>(
   const stopOnError = options?.stopOnError ?? false;
   const logProgressEvery = options?.logProgressEvery ?? 0;
 
-  const results: R[] = new Array(items.length);
+  const results: (R | undefined)[] = new Array(items.length);
   const errors: { index: number; error: Error }[] = [];
   let itemIndex = 0;
   let completedCount = 0;
@@ -200,7 +204,7 @@ export async function executeBatched<T, R>(
     };
   }
 
-  const allResults: R[] = [];
+  const allResults: (R | undefined)[] = [];
   const allErrors: { index: number; error: Error }[] = [];
   let totalSuccess = 0;
   let globalIndex = 0;
@@ -310,11 +314,13 @@ export function createSemaphore(limit: number) {
     },
 
     release(): void {
-      running--;
       const next = queue.shift();
       if (next) {
-        running++;
+        // Keep running at the same level - transfer slot to queued waiter
         next();
+      } else {
+        // Only decrement if no queued item waiting
+        running--;
       }
     },
 

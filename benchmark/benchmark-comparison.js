@@ -212,9 +212,7 @@ async function main() {
     console.log('│ Method                                      │ Duration   │ Tablets/sec    │ Points/sec       │');
     console.log('├─────────────────────────────────────────────┼────────────┼────────────────┼──────────────────┤');
     
-    const baseline = parseFloat(results[0].throughput);
     for (const r of results) {
-      const speedup = (parseFloat(r.throughput) / baseline).toFixed(2);
       console.log(
         `│ ${r.name.padEnd(43)} │ ${r.duration.padStart(8)}ms │ ${r.throughput.padStart(14)} │ ${r.pointsPerSec.padStart(16)} │`
       );

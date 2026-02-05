@@ -647,7 +647,9 @@ export abstract class BaseSessionPool {
    * @param options Configuration options
    * @param options.concurrency Number of concurrent workers (default: pool size or 10)
    * @param options.stopOnError Whether to stop processing on first error (default: false)
-   * @returns Results array (in same order as input items)
+   * @returns Results array (in same order as input items).
+   *          Note: When stopOnError=false, failed operations will have `undefined` at their index.
+   *          Check array entries for undefined to detect failures.
    * 
    * @example
    * ```typescript
@@ -660,13 +662,15 @@ export abstract class BaseSessionPool {
    *   },
    *   { concurrency: 5 }
    * );
+   * // Check for failures
+   * const failures = results.filter((r, i) => r === undefined);
    * ```
    */
   async executeParallel<T, R>(
     items: T[],
     operation: (session: Session, item: T, index: number) => Promise<R>,
     options?: { concurrency?: number; stopOnError?: boolean },
-  ): Promise<R[]> {
+  ): Promise<(R | undefined)[]> {
     if (items.length === 0) {
       return [];
     }
@@ -690,7 +694,7 @@ export abstract class BaseSessionPool {
       throw error;
     }
 
-    const results: R[] = new Array(items.length);
+    const results: (R | undefined)[] = new Array(items.length);
     let itemIndex = 0;
     let shouldStop = false;
     const errors: { index: number; error: Error }[] = [];
