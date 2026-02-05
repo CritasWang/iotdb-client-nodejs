@@ -158,7 +158,7 @@ async function main() {
       tablets.push({
         tableName: "batch_table",
         columnNames: ["device_id", "temperature"],
-        columnTypes: [TSDataType.TEXT, TSDataType.FLOAT],
+        columnTypes: [TSDataType.STRING, TSDataType.FLOAT],  // Use STRING for TAG columns
         columnCategories: [ColumnCategory.TAG, ColumnCategory.FIELD],
         timestamps: [batchTime + i * 1000],
         values: [[`batch_device_${i}`, 20.0 + i]],

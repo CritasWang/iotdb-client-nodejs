@@ -39,7 +39,7 @@
  *   POOL_SIZE               - Session pool size (default: 10)
  */
 
-const { TableSessionPool, ColumnCategory } = require('../dist');
+const { TableSessionPool, ColumnCategory, TSDataType } = require('../dist');
 const { performance } = require('perf_hooks');
 
 // Configuration
@@ -76,7 +76,7 @@ function generateTableTablets(count, batchSize, prefix) {
     tablets.push({
       tableName: config.TABLE_NAME,
       columnNames: ['device_id', 'sensor1', 'sensor2'],
-      columnTypes: [11, 3, 3], // STRING, FLOAT, FLOAT
+      columnTypes: [TSDataType.STRING, TSDataType.FLOAT, TSDataType.FLOAT],
       columnCategories: [
         ColumnCategory.TAG,    // device_id
         ColumnCategory.FIELD,  // sensor1
