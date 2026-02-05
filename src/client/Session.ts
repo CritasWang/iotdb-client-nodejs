@@ -1457,6 +1457,26 @@ export class Session {
           return;
         }
 
+        // Handle redirection recommendation (code 400)
+        // Note: Code 400 means write SUCCEEDED but server recommends a different endpoint for future operations
+        if (response.code === 400) {
+          // Store redirect recommendation if provided (use first device's recommendation)
+          if (response.redirectNode) {
+            this.lastRedirectEndpoint = {
+              host: response.redirectNode.internalIp || response.redirectNode.ip,
+              port: response.redirectNode.port,
+            };
+            logger.debug(
+              `Server recommends endpoint ${this.lastRedirectEndpoint.host}:${this.lastRedirectEndpoint.port} for future writes`
+            );
+          } else {
+            logger.debug(`Server returned code 400 without redirect node`);
+          }
+          // Resolve successfully - the write already succeeded
+          resolve();
+          return;
+        }
+
         if (response.code !== 200) {
           reject(new Error(response.message || "Insert tablets failed"));
           return;
