@@ -1,3 +1,7 @@
+> [!IMPORTANT]
+> **本仓库已迁移至 [apache/iotdb-client-nodejs](https://github.com/apache/iotdb-client-nodejs)。**
+> 后续开发在 Apache IoTDB 官方仓库进行；本仓库已归档，仅作历史存档。
+
 # Apache IoTDB Node.js 客户端
 
 [![License](https://img.shields.io/badge/license-Apache%202-4EB1BA.svg)](https://www.apache.org/licenses/LICENSE-2.0.html)
