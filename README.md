@@ -1,3 +1,7 @@
+> [!IMPORTANT]
+> **This repository has moved to [apache/iotdb-client-nodejs](https://github.com/apache/iotdb-client-nodejs).**
+> Development now happens in the official Apache IoTDB repository; this repository is archived and kept for historical reference only.
+
 # Apache IoTDB Node.js Client
 
 [![License](https://img.shields.io/badge/license-Apache%202-4EB1BA.svg)](https://www.apache.org/licenses/LICENSE-2.0.html)
